@@ -1,0 +1,18 @@
+{
+  "name": "案件管理 - studio mizumochi",
+  "short_name": "案件管理",
+  "description": "studio mizumochi 案件管理ダッシュボード",
+  "start_url": "/dashboard/",
+  "scope": "/dashboard/",
+  "display": "standalone",
+  "background_color": "#EDE1D4",
+  "theme_color": "#714944",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "/dashboard/favicon/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

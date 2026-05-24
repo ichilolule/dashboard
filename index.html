@@ -5,12 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <link rel="apple-touch-icon" sizes="180x180" href="/dashboard/favicon/apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/dashboard/favicon/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/dashboard/favicon/favicon-16x16.png">
-<link rel="manifest" href="/dashboard/favicon/site.webmanifest">
+<link rel="manifest" href="/dashboard/manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="案件管理">
+<meta name="theme-color" content="#714944">
 
-  
-<title>案件管理 v17_2</title>
+<title>案件管理 v18</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -306,7 +308,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 </style>
 </head>
 <body>
-<h1 class="sr-only">案件管理ダッシュボード v14</h1>
+<h2 class="sr-only">案件管理ダッシュボード</h2>
 <div class="top-bar">
   <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理 <span style="font-size:11px;opacity:.7">v17_2</span></span>
   <div style="display:flex;align-items:center;gap:8px">
@@ -373,16 +375,18 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
   <div class="settings-wrap">
     <div class="settings-section">
       <h3><i class="ti ti-user" style="vertical-align:-2px;margin-right:5px"></i>プロフィール（請求書に表示）</h3>
-      <div class="settings-row"><label>名前・屋号</label><input type="text" id="cfg-profName" placeholder="studio mizumochi - ichilole" oninput="saveProfile()"></div>
+      <div class="settings-row"><label>名前</label><input type="text" id="cfg-profName" oninput="saveProfile()"></div>
+      <div class="settings-row"><label>屋号</label><input type="text" id="cfg-profStudio" oninput="saveProfile()"></div>
       <div class="settings-row" style="align-items:flex-start"><label style="padding-top:6px">住所</label><textarea id="cfg-profAddr" placeholder="〒000-0000 東京都…（任意）" oninput="saveProfile()" style="flex:1;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:6px 8px;background:var(--bg2);color:var(--tx);min-height:48px;resize:vertical;font-family:inherit"></textarea></div>
-      <div class="settings-row"><label>メールアドレス</label><input type="text" id="cfg-profEmail" placeholder="ichilolule@gmail.com" oninput="saveProfile()"></div>
-      <div class="settings-row"><label>Website URL</label><input type="text" id="cfg-profWeb" placeholder="https://ichilole.com" oninput="saveProfile()"></div>
+      <div class="settings-row"><label>メールアドレス</label><input type="text" id="cfg-profEmail" placeholder="" oninput="saveProfile()"></div>
+      <div class="settings-row"><label>Website URL</label><input type="text" id="cfg-profWeb" placeholder="" oninput="saveProfile()"></div>
+      <div class="settings-row" style="align-items:flex-start"><label style="padding-top:6px">請求書備考<br><span style="font-size:11px;color:var(--tx3);font-weight:normal">（空欄で非表示）</span></label><textarea id="cfg-invNotes" placeholder="（例）&#10;・お支払い確認後に制作を開始いたします。&#10;・着手から納品まで原則2週間いただいております。" oninput="saveProfile()" style="flex:1;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:6px 8px;background:var(--bg2);color:var(--tx);min-height:80px;resize:vertical;font-family:inherit"></textarea></div>
     </div>
     <div class="settings-section">
       <h3><i class="ti ti-credit-card" style="vertical-align:-2px;margin-right:5px"></i>お支払い情報（メール・請求書に自動反映）</h3>
       <div style="font-size:12px;color:var(--tx3);margin-bottom:.5rem">未記入の項目はメール・請求書に黄色マーカーで表示されます</div>
-      <div class="settings-row" style="align-items:flex-start"><label style="padding-top:6px">口座情報<br><span style="font-size:11px;color:var(--tx3);font-weight:normal">（銀行振込用）</span></label><textarea id="cfg-bankInfo" placeholder="例：〇〇銀行 〇〇支店 普通 1234567 ｲﾁﾛﾚ" oninput="saveProfile()" style="flex:1;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:6px 8px;background:var(--bg2);color:var(--tx);min-height:48px;resize:vertical;font-family:inherit"></textarea></div>
-      <div class="settings-row"><label>PayPay ID</label><input type="text" id="cfg-paypayId" placeholder="例：@ichilole" oninput="saveProfile()"></div>
+      <div class="settings-row" style="align-items:flex-start"><label style="padding-top:6px">口座情報<br><span style="font-size:11px;color:var(--tx3);font-weight:normal">（銀行振込用）</span></label><textarea id="cfg-bankInfo" placeholder="例：〇〇銀行 〇〇支店 普通 1234567" oninput="saveProfile()" style="flex:1;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:6px 8px;background:var(--bg2);color:var(--tx);min-height:48px;resize:vertical;font-family:inherit"></textarea></div>
+      <div class="settings-row"><label>PayPay ID</label><input type="text" id="cfg-paypayId" oninput="saveProfile()"></div>
     </div>
     <div class="settings-section">
       <h3><i class="ti ti-file-invoice" style="vertical-align:-2px;margin-right:5px"></i>請求書番号</h3>
@@ -671,10 +675,10 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 // ===== DEFAULT SETTINGS =====
 const DEF_CFG = {priceSD:6000,priceFace:7000,priceBust:8500,priceFull:10000,priceNC:6000,priceBG:3000,rateStream:30,rateGoods:100,ratePrivate:20,ratePaypal:5,paydueDays:14,remindDays:2,dailyHours:4,morningHours:5,nightHours:4,hourlyRate:1800,holidayWeekdays:[0],waitDays:7,weightRough:100,weightLine:100,weightClean:100,weightRetouch:100};
 const CFG_KEYS = ['priceSD','priceFace','priceBust','priceFull','priceNC','priceBG','rateStream','rateGoods','ratePrivate','ratePaypal','paydueDays','remindDays','dailyHours','morningHours','nightHours','hourlyRate','waitDays','weightRough','weightLine','weightClean','weightRetouch'];
-const DEF_PROF = {name:'studio mizumochi - ichilole',addr:'',email:'ichilolule@gmail.com',web:'https://ichilole.com',bankInfo:'',paypayId:''};
+const DEF_PROF = {name:'',studio:'',addr:'',email:'',web:'',bankInfo:'',paypayId:'',invNotes:''};
 
-function getCfg(){try{return{...DEF_CFG,...JSON.parse(localStorage.getItem('ichilole_v10_cfg')||'{}')};}catch(e){return{...DEF_CFG};}}
-function getProfile(){try{return{...DEF_PROF,...JSON.parse(localStorage.getItem('ichilole_v10_profile')||'{}')};}catch(e){return{...DEF_PROF};}}
+function getCfg(){try{return{...DEF_CFG,...JSON.parse(localStorage.getItem('cfg')||'{}')};}catch(e){return{...DEF_CFG};}}
+function getProfile(){try{return{...DEF_PROF,...JSON.parse(localStorage.getItem('profile')||'{}')};}catch(e){return{...DEF_PROF};}}
 
 function saveCfg(){
   const c=getCfg();
@@ -683,7 +687,7 @@ function saveCfg(){
   const hw=[];
   document.querySelectorAll('#cfg-holidays input[type=checkbox]').forEach(cb=>{if(cb.checked)hw.push(parseInt(cb.value));});
   c.holidayWeekdays=hw;
-  localStorage.setItem('ichilole_v10_cfg',JSON.stringify(c));
+  localStorage.setItem('cfg',JSON.stringify(c));
   updateSettingsLabels();
   renderCharsEst();calcEst();
   // カレンダーが表示中なら再描画
@@ -692,16 +696,18 @@ function saveCfg(){
 }
 function saveProfile(){
   const p={
-    name:document.getElementById('cfg-profName').value.trim()||DEF_PROF.name,
+    name:document.getElementById('cfg-profName').value.trim(),
+    studio:document.getElementById('cfg-profStudio').value.trim(),
     addr:document.getElementById('cfg-profAddr').value.trim(),
-    email:document.getElementById('cfg-profEmail').value.trim()||DEF_PROF.email,
-    web:document.getElementById('cfg-profWeb').value.trim()||DEF_PROF.web,
+    email:document.getElementById('cfg-profEmail').value.trim(),
+    web:document.getElementById('cfg-profWeb').value.trim(),
     bankInfo:document.getElementById('cfg-bankInfo').value.trim(),
     paypayId:document.getElementById('cfg-paypayId').value.trim(),
+    invNotes:document.getElementById('cfg-invNotes').value.trim(),
   };
-  localStorage.setItem('ichilole_v10_profile',JSON.stringify(p));
+  localStorage.setItem('profile',JSON.stringify(p));
 }
-function resetCfg(){if(!confirm('設定をデフォルトに戻しますか？'))return;localStorage.removeItem('ichilole_v10_cfg');loadSettingsUI();updateSettingsLabels();renderCharsEst();calcEst();}
+function resetCfg(){if(!confirm('設定をデフォルトに戻しますか？'))return;localStorage.removeItem('cfg');loadSettingsUI();updateSettingsLabels();renderCharsEst();calcEst();}
 function loadSettingsUI(){
   const c=getCfg();
   CFG_KEYS.forEach(k=>{const el=document.getElementById('cfg-'+k);if(el)el.value=c[k];});
@@ -713,17 +719,19 @@ function loadSettingsUI(){
     holEl.innerHTML=DHS.map((d,i)=>`<label style="display:flex;align-items:center;gap:3px;font-size:13px;padding:4px 9px;border:.5px solid var(--bd);border-radius:20px;background:var(--bg2);cursor:pointer;${hw.includes(i)?'background:var(--ac-bg);border-color:var(--ac);':''}"><input type="checkbox" value="${i}" ${hw.includes(i)?'checked':''} onchange="saveCfg()" style="margin:0">${d}</label>`).join('');
   }
   const p=getProfile();
-  const pn=document.getElementById('cfg-profName');if(pn)pn.value=p.name===DEF_PROF.name?'':p.name;
+  const pn=document.getElementById('cfg-profName');if(pn)pn.value=p.name||'';
+  const ps=document.getElementById('cfg-profStudio');if(ps)ps.value=p.studio||'';
   const pa=document.getElementById('cfg-profAddr');if(pa)pa.value=p.addr;
-  const pe=document.getElementById('cfg-profEmail');if(pe)pe.value=p.email===DEF_PROF.email?'':p.email;
-  const pw=document.getElementById('cfg-profWeb');if(pw)pw.value=p.web===DEF_PROF.web?'':p.web;
+  const pe=document.getElementById('cfg-profEmail');if(pe)pe.value=p.email||'';
+  const pw=document.getElementById('cfg-profWeb');if(pw)pw.value=p.web||'';
   const bi=document.getElementById('cfg-bankInfo');if(bi)bi.value=p.bankInfo||'';
   const py=document.getElementById('cfg-paypayId');if(py)py.value=p.paypayId||'';
+  const ni=document.getElementById('cfg-invNotes');if(ni)ni.value=p.invNotes||'';
   updateInvSeqPreview();
 }
 
 // ===== 請求書番号管理 =====
-function getInvMonthKey(){const d=now;return'ichilole_v10_invseq_'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0');}
+function getInvMonthKey(){const d=now;return'invseq_'+d.getFullYear()+String(d.getMonth()+1).padStart(2,'0');}
 function getNextInvNum(){
   const key=getInvMonthKey();
   let seq=parseInt(localStorage.getItem(key)||'0')+1;
@@ -755,27 +763,8 @@ const S_CLS={new:'b-new',progress:'b-prog',wait:'b-wait',done:'b-done'};
 
 // ===== DATA =====
 let cases=[],archive=[];
-try{cases=JSON.parse(localStorage.getItem('ichilole_v10_cases')||'[]');}catch(e){}
-try{archive=JSON.parse(localStorage.getItem('ichilole_v10_archive')||'[]');}catch(e){}
-
-// ===== v12 → v13 マイグレーション =====
-// v12: 0=着手前, 1=大ラフ, 2=清書前ラフ, 3=最終確認, 4=納品済み
-// v13: 0=着手前, 1=大ラフ, 2=清書前ラフ, 3=清書, 4=レタッチ, 5=納品済み
-// v12 step=3（最終確認）→ v13 step=4（レタッチ）、v12 step=4（納品済み）→ v13 step=5（納品済み）
-(function migrateV12toV13(){
-  if(localStorage.getItem('ichilole_v13_migrated')==='1')return;
-  const migrateStep=v=>{
-    const s=parseInt(v)||0;
-    if(s>=4)return '5';
-    if(s===3)return '4';
-    return String(s);
-  };
-  cases.forEach(c=>{c.step=migrateStep(c.step);});
-  archive.forEach(c=>{c.step=migrateStep(c.step);});
-  localStorage.setItem('ichilole_v10_cases',JSON.stringify(cases));
-  localStorage.setItem('ichilole_v10_archive',JSON.stringify(archive));
-  localStorage.setItem('ichilole_v13_migrated','1');
-})();
+try{cases=JSON.parse(localStorage.getItem('cases')||'[]');}catch(e){}
+try{archive=JSON.parse(localStorage.getItem('archive')||'[]');}catch(e){}
 
 // ===== _cid マイグレーション（チェックシート用ケースID）=====
 (function migrateCid(){
@@ -784,8 +773,8 @@ try{archive=JSON.parse(localStorage.getItem('ichilole_v10_archive')||'[]');}catc
   cases.forEach(c=>{if(!c._cid){c._cid=gen();changed=true;}});
   archive.forEach(c=>{if(!c._cid){c._cid=gen();changed=true;}});
   if(changed){
-    localStorage.setItem('ichilole_v10_cases',JSON.stringify(cases));
-    localStorage.setItem('ichilole_v10_archive',JSON.stringify(archive));
+    localStorage.setItem('cases',JSON.stringify(cases));
+    localStorage.setItem('archive',JSON.stringify(archive));
   }
 })();
 let editIdx=null,doneIdx=null,emailCaseIdx=null,emailType=null,emailLang='ja',declineVariant='soft',sortMode='deadline';
@@ -794,7 +783,7 @@ const now=new Date();
 calYear=now.getFullYear();calMonth=now.getMonth();
 
 
-function saveAll(){localStorage.setItem('ichilole_v10_cases',JSON.stringify(cases));localStorage.setItem('ichilole_v10_archive',JSON.stringify(archive));render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();}
+function saveAll(){localStorage.setItem('cases',JSON.stringify(cases));localStorage.setItem('archive',JSON.stringify(archive));render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();}
 // 値を配列に正規化（文字列/null/undefinedにも対応）
 function toArr(v){return Array.isArray(v)?v:(v?[v]:[]);}
 function dL(d){return d?Math.ceil((new Date(d+'T12:00:00')-now)/86400000):null;}
@@ -1158,24 +1147,24 @@ function saveCase(){
 // ===== EMAIL TEMPLATES =====
 const TMPL={
   ja:{
-    estimate:{subject:'【お見積もり】イラスト制作のご案内｜ichilole - studio mizumochi',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。ichiloleです。\n\n内容を確認いたしましたので、お見積もりをお送りいたします。\n\n─────────────────────\n\n【お見積もり内容】\n　依頼内容　　：{{〜〜イラスト制作のご請求}}\n　ご請求金額　：¥{{料金}}\n　希望納期　　：{{希望納期}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\nご確認いただけましたら、ご承諾の旨をお知らせください。\n請求書をお送りいたします。\n\nご不明な点はお気軽にご連絡ください。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail：ichilolule@gmail.com\nPortfolio：https://ichilole.com'},
-    invoice:{subject:'【ご請求】イラスト制作のご請求｜ichilole - studio mizumochi',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。\n制作のご請求書をお送りいたします。\n\nお支払い確認後、制作を開始いたします。\nご不明な点がございましたら、お気軽にお申し付けください。\n\n─────────────────────\n\n【請求内容】\n　請求書番号　：{{請求書番号}}\n　発行日　　　：{{今日の日付}}\n　お支払い期限：{{支払い期限}}\n　ご請求金額　：¥{{料金}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail：ichilolule@gmail.com\nPortfolio：https://ichilole.com'},
-    roughDraft:{subject:'【大ラフ】イラストのご確認｜ichilole - studio mizumochi',body:'{{依頼者名}}様\n\nお世話になっております。ichiloleです。\n大ラフが完成いたしましたので、ご確認をお願いいたします。\n\n─────────────────────\n\n【ご確認いただきたい点】\n　・全体の構図・ポーズ\n　・キャラクターのデザイン・顔の向き\n　・その他、イメージと異なる点\n\nこの段階では構図やデザインなど大きな変更が可能です。\n修正は2回まで無償で承っております。\n\n気になる点がありましたら、遠慮なくご連絡ください。\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail：ichilolule@gmail.com\nPortfolio：https://ichilole.com'},
-    lineArt:{subject:'【清書前ラフ】清書前イラストのご確認｜ichilole - studio mizumochi',body:'{{依頼者名}}様\n\nお世話になっております。ichiloleです。\n清書前ラフが完成いたしましたので、ご確認をお願いいたします。\n\n─────────────────────\n\n【ご確認いただきたい点】\n　・ポーズの微調整\n　・表情・細部のバランス\n　・その他、気になる点\n\nこの段階からは細部の調整が中心となります。\n大きな変更がある場合は、お早めにご連絡ください。\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail：ichilolule@gmail.com\nPortfolio：https://ichilole.com'},
-    delivery:{subject:'【納品】完成原稿のご確認｜ichilole - studio mizumochi',body:'{{依頼者名}}様\n\nお世話になっております。ichiloleです。\nイラストが完成いたしましたのでお届けいたします。\n\n─────────────────────\n\n【納品ファイル】\n　形式　：{{納品形式}}\n\nご確認いただき、問題がなければそのままご使用ください。\n納品後7日間ご連絡がない場合は、完了とさせていただきます。\n\nご利用の際は、申告いただいた用途の範囲内でお使いください。\n二次配布・転売・AI学習への使用はご遠慮いただいております。\n\n小物忘れなどがありましたら折り返しご連絡をお願いいたします。\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail：ichilolule@gmail.com\nPortfolio：https://ichilole.com'},
-    payment:{subject:'お支払い期日のご確認｜ichilole - studio mizumochi',body:'{{依頼者名}}様\n\nお世話になっております。ichiloleです。\n\nご案内の請求書につきまして、お支払い期日が2日後になりましたのでご連絡いたしました。\n期日以降は自動でキャンセルとなっております。\n\n期日以降は納期変更のうえ再度ご相談いただけましたら、可能な範囲で対応いたしますので、お気軽にご連絡ください。\n\nすでにご対応済みでしたら、行き違いとなりましたことご容赦ください。\nよろしくお願いいたします。\n\n─────────────────────\n\n【お支払い情報】\n　お支払い期限　：{{支払い期限}}\n　ご請求金額　　：¥{{料金}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail：ichilolule@gmail.com\nPortfolio：https://ichilole.com'},
-    decline_soft:{subject:'ご依頼について｜ichilole - studio mizumochi',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。ichiloleです。\n\n内容を拝見いたしましたが、現在の状況では\nご希望に沿った形でのご対応が難しい状況です。\nせっかくお声がけいただきましたのに、大変申し訳ございません。\n\nまたご依頼の機会がございましたら、ぜひお声がけください。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail：ichilolule@gmail.com\nPortfolio：https://ichilole.com'},
-    decline_hard:{subject:'ご依頼について｜ichilole - studio mizumochi',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。ichiloleです。\n\n誠に恐れ入りますが、今回はご依頼をお受けすることが\n難しい状況です。\n\nお力になれず申し訳ございません。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail：ichilolule@gmail.com\nPortfolio：https://ichilole.com'}
+    estimate:{subject:'【お見積もり】イラスト制作のご案内｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前}}です。\n\n内容を確認いたしましたので、お見積もりをお送りいたします。\n\n─────────────────────\n\n【お見積もり内容】\n　依頼内容　　：{{〜〜イラスト制作のご請求}}\n　ご請求金額　：¥{{料金}}\n　希望納期　　：{{希望納期}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\nご確認いただけましたら、ご承諾の旨をお知らせください。\n請求書をお送りいたします。\n\nご不明な点はお気軽にご連絡ください。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
+    invoice:{subject:'【ご請求】イラスト制作のご請求｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。\n制作のご請求書をお送りいたします。\n\nお支払い確認後、制作を開始いたします。\nご不明な点がございましたら、お気軽にお申し付けください。\n\n─────────────────────\n\n【請求内容】\n　請求書番号　：{{請求書番号}}\n　発行日　　　：{{今日の日付}}\n　お支払い期限：{{支払い期限}}\n　ご請求金額　：¥{{料金}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
+    roughDraft:{subject:'【大ラフ】イラストのご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前}}です。\n大ラフが完成いたしましたので、ご確認をお願いいたします。\n\n─────────────────────\n\n【ご確認いただきたい点】\n　・全体の構図・ポーズ\n　・キャラクターのデザイン・顔の向き\n　・その他、イメージと異なる点\n\nこの段階では構図やデザインなど大きな変更が可能です。\n修正は2回まで無償で承っております。\n\n気になる点がありましたら、遠慮なくご連絡ください。\n\n─────────────────────\n\n{{署名}}'},
+    lineArt:{subject:'【清書前ラフ】清書前イラストのご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前}}です。\n清書前ラフが完成いたしましたので、ご確認をお願いいたします。\n\n─────────────────────\n\n【ご確認いただきたい点】\n　・ポーズの微調整\n　・表情・細部のバランス\n　・その他、気になる点\n\nこの段階からは細部の調整が中心となります。\n大きな変更がある場合は、お早めにご連絡ください。\n\n─────────────────────\n\n{{署名}}'},
+    delivery:{subject:'【納品】完成原稿のご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前}}です。\nイラストが完成いたしましたのでお届けいたします。\n\n─────────────────────\n\n【納品ファイル】\n　形式　：{{納品形式}}\n\nご確認いただき、問題がなければそのままご使用ください。\n納品後7日間ご連絡がない場合は、完了とさせていただきます。\n\nご利用の際は、申告いただいた用途の範囲内でお使いください。\n二次配布・転売・AI学習への使用はご遠慮いただいております。\n\n小物忘れなどがありましたら折り返しご連絡をお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
+    payment:{subject:'お支払い期日のご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前}}です。\n\nご案内の請求書につきまして、お支払い期日が2日後になりましたのでご連絡いたしました。\n期日以降は自動でキャンセルとなっております。\n\n期日以降は納期変更のうえ再度ご相談いただけましたら、可能な範囲で対応いたしますので、お気軽にご連絡ください。\n\nすでにご対応済みでしたら、行き違いとなりましたことご容赦ください。\nよろしくお願いいたします。\n\n─────────────────────\n\n【お支払い情報】\n　お支払い期限　：{{支払い期限}}\n　ご請求金額　　：¥{{料金}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
+    decline_soft:{subject:'ご依頼について｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前}}です。\n\n内容を拝見いたしましたが、現在の状況では\nご希望に沿った形でのご対応が難しい状況です。\nせっかくお声がけいただきましたのに、大変申し訳ございません。\n\nまたご依頼の機会がございましたら、ぜひお声がけください。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
+    decline_hard:{subject:'ご依頼について｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前}}です。\n\n誠に恐れ入りますが、今回はご依頼をお受けすることが\n難しい状況です。\n\nお力になれず申し訳ございません。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'}
   },
   en:{
-    estimate:{subject:'[Quotation] Illustration Commission | ichilole - studio mizumochi',body:'Dear {{依頼者名}},\n\nThank you very much for your commission. This is ichilole.\n\nI have reviewed the details and have provided an estimate below.\n\n─────────────────────\n\n[Quotation Details]\n　Description: {{〜〜イラスト制作のご請求}}\n　Total Amount: ¥{{料金}}\n　Requested Deadline: {{希望納期}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\nIf everything looks correct, please let me know your approval.\nI will then proceed to send the formal invoice.\n\nIf you have any questions, please feel free to reach out.\nBest regards,\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail: ichilolule@gmail.com\nPortfolio: https://ichilole.com'},
-    invoice:{subject:'[Invoice] Illustration Commission | ichilole - studio mizumochi',body:'Dear {{依頼者名}},\n\nThank you very much for your commission.\nI am sending the invoice for your commission.\n\nWork will begin after payment is confirmed.\nIf you have any questions, please feel free to let me know.\n\n─────────────────────\n\n[Invoice Details]\n　Invoice Number: {{請求書番号}}\n　Issue Date: {{今日の日付}}\n　Payment Due Date: {{支払い期限}}\n　Total Amount: ¥{{料金}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail: ichilolule@gmail.com\nPortfolio: https://ichilole.com'},
-    roughDraft:{subject:'[Rough Draft] Illustration Check-in | ichilole - studio mizumochi',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is ichilole.\nThe initial rough draft is now complete. Please take a look and let me know your thoughts.\n\n─────────────────────\n\n[Points to check]\n　- Overall composition and pose\n　- Character design and facial expressions\n　- Any other points that differ from your initial vision\n\nMajor changes to composition and design are possible at this stage.\nI offer up to two rounds of revisions free of charge.\n\nIf you have any concerns or adjustments, please don\'t hesitate to contact me.\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail: ichilolule@gmail.com\nPortfolio: https://ichilole.com'},
-    lineArt:{subject:'[Line Art Draft] Illustration Check-in | ichilole - studio mizumochi',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is ichilole.\nThe line art draft is now ready for your review. Please check the following.\n\n─────────────────────\n\n[Points to check]\n　- Fine adjustments to the pose\n　- Balance of facial expressions and details\n　- Any other points of concern\n\nFrom this stage onwards, revisions will focus primarily on fine details.\nIf there are any major changes needed, please let me know as soon as possible.\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail: ichilolule@gmail.com\nPortfolio: https://ichilole.com'},
-    delivery:{subject:'[Delivery] Completed Illustration | ichilole - studio mizumochi',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is ichilole.\nThe illustration is now complete and ready for download.\n\n─────────────────────\n\n[Delivery Files]\n　Format: {{納品形式}}\n\nPlease check the file(s), and if there are no issues, feel free to use them.\nIf I do not hear from you within 7 days after delivery, the commission will be marked as complete.\n\nPlease use the illustration only within the scope of the intended use you declared.\nSecondary distribution, resale, and use for AI training are strictly prohibited.\n\nIf you notice anything missing or off, please don\'t hesitate to reach out.\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail: ichilolule@gmail.com\nPortfolio: https://ichilole.com'},
-    payment:{subject:'Payment Due Date Reminder | ichilole - studio mizumochi',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is ichilole.\n\nI am writing to remind you that the payment due date for the previously sent invoice is in two days.\nPlease note that if the payment is not confirmed by the deadline, the commission will be automatically cancelled.\n\nIf the deadline passes, I would be happy to discuss a new schedule and accommodate your request as much as possible, so please feel free to contact me.\n\nIf you have already made the payment, please disregard this email.\nThank you for your cooperation.\n\n─────────────────────\n\n[Payment Information]\n　Due Date: {{支払い期限}}\n　Total Amount: ¥{{料金}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail: ichilolule@gmail.com\nPortfolio: https://ichilole.com'},
-    decline_soft:{subject:'Regarding Your Commission Inquiry | ichilole - studio mizumochi',body:'Dear {{依頼者名}},\n\nThank you so much for reaching out to me. This is ichilole.\n\nAfter reviewing your request, I\'m afraid I\'m unable to\naccommodate it in a way that meets your expectations at this time.\nI sincerely apologize for any inconvenience this may cause.\n\nI hope we\'ll have the opportunity to work together in the future.\nThank you for your understanding.\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail: ichilolule@gmail.com\nPortfolio: https://ichilole.com'},
-    decline_hard:{subject:'Regarding Your Commission Inquiry | ichilole - studio mizumochi',body:'Dear {{依頼者名}},\n\nThank you for your interest in my work. This is ichilole.\n\nI regret to inform you that I am unable to accept\nyour commission request at this time.\n\nI apologize for any inconvenience this may cause.\nThank you for your understanding.\n\n─────────────────────\n\nstudio mizumochi - ichilole\nEmail: ichilolule@gmail.com\nPortfolio: https://ichilole.com'}
+    estimate:{subject:'[Quotation] Illustration Commission | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you very much for your commission. This is {{名前}}.\n\nI have reviewed the details and have provided an estimate below.\n\n─────────────────────\n\n[Quotation Details]\n　Description: {{〜〜イラスト制作のご請求}}\n　Total Amount: ¥{{料金}}\n　Requested Deadline: {{希望納期}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\nIf everything looks correct, please let me know your approval.\nI will then proceed to send the formal invoice.\n\nIf you have any questions, please feel free to reach out.\nBest regards,\n\n─────────────────────\n\n{{署名}}'},
+    invoice:{subject:'[Invoice] Illustration Commission | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you very much for your commission.\nI am sending the invoice for your commission.\n\nWork will begin after payment is confirmed.\nIf you have any questions, please feel free to let me know.\n\n─────────────────────\n\n[Invoice Details]\n　Invoice Number: {{請求書番号}}\n　Issue Date: {{今日の日付}}\n　Payment Due Date: {{支払い期限}}\n　Total Amount: ¥{{料金}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
+    roughDraft:{subject:'[Rough Draft] Illustration Check-in | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前}}.\nThe initial rough draft is now complete. Please take a look and let me know your thoughts.\n\n─────────────────────\n\n[Points to check]\n　- Overall composition and pose\n　- Character design and facial expressions\n　- Any other points that differ from your initial vision\n\nMajor changes to composition and design are possible at this stage.\nI offer up to two rounds of revisions free of charge.\n\nIf you have any concerns or adjustments, please don\'t hesitate to contact me.\n\n─────────────────────\n\n{{署名}}'},
+    lineArt:{subject:'[Line Art Draft] Illustration Check-in | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前}}.\nThe line art draft is now ready for your review. Please check the following.\n\n─────────────────────\n\n[Points to check]\n　- Fine adjustments to the pose\n　- Balance of facial expressions and details\n　- Any other points of concern\n\nFrom this stage onwards, revisions will focus primarily on fine details.\nIf there are any major changes needed, please let me know as soon as possible.\n\n─────────────────────\n\n{{署名}}'},
+    delivery:{subject:'[Delivery] Completed Illustration | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前}}.\nThe illustration is now complete and ready for download.\n\n─────────────────────\n\n[Delivery Files]\n　Format: {{納品形式}}\n\nPlease check the file(s), and if there are no issues, feel free to use them.\nIf I do not hear from you within 7 days after delivery, the commission will be marked as complete.\n\nPlease use the illustration only within the scope of the intended use you declared.\nSecondary distribution, resale, and use for AI training are strictly prohibited.\n\nIf you notice anything missing or off, please don\'t hesitate to reach out.\n\n─────────────────────\n\n{{署名}}'},
+    payment:{subject:'Payment Due Date Reminder | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前}}.\n\nI am writing to remind you that the payment due date for the previously sent invoice is in two days.\nPlease note that if the payment is not confirmed by the deadline, the commission will be automatically cancelled.\n\nIf the deadline passes, I would be happy to discuss a new schedule and accommodate your request as much as possible, so please feel free to contact me.\n\nIf you have already made the payment, please disregard this email.\nThank you for your cooperation.\n\n─────────────────────\n\n[Payment Information]\n　Due Date: {{支払い期限}}\n　Total Amount: ¥{{料金}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
+    decline_soft:{subject:'Regarding Your Commission Inquiry | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you so much for reaching out to me. This is {{名前}}.\n\nAfter reviewing your request, I\'m afraid I\'m unable to\naccommodate it in a way that meets your expectations at this time.\nI sincerely apologize for any inconvenience this may cause.\n\nI hope we\'ll have the opportunity to work together in the future.\nThank you for your understanding.\n\n─────────────────────\n\n{{署名}}'},
+    decline_hard:{subject:'Regarding Your Commission Inquiry | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you for your interest in my work. This is {{名前}}.\n\nI regret to inform you that I am unable to accept\nyour commission request at this time.\n\nI apologize for any inconvenience this may cause.\nThank you for your understanding.\n\n─────────────────────\n\n{{署名}}'}
   }
 };
 
@@ -1236,6 +1225,17 @@ const USG_EN_MAP={
   'グッズ制作・販売':'Merchandise/Sales'
 };
 
+function buildSignature(lang){
+  const p=getProfile();
+  const nameStr=[p.studio,p.name].filter(Boolean).join(' - ');
+  const sep=lang==='en'?': ':'：';
+  const lines=[];
+  if(nameStr)lines.push(nameStr);
+  if(p.email)lines.push('Email'+sep+p.email);
+  if(p.web)lines.push('Portfolio'+sep+p.web);
+  return lines.join('\n');
+}
+
 function getSubstitutions(c, type, lang){
   const covA=toArr(c.coverage);
   const usgA=toArr(c.usage);
@@ -1262,6 +1262,8 @@ function getSubstitutions(c, type, lang){
     '{{請求書番号}}':invNum,
     '{{今日の日付}}':dlFmt(today),
     '{{納品形式}}':fmtA.length?fmtA.join(' / '):null,
+    '{{署名}}':buildSignature(lang)||null,
+    '{{名前}}':[getProfile().studio,getProfile().name].filter(Boolean).join(' - ')||null,
   };
 }
 
@@ -1537,12 +1539,12 @@ function addDays(s,n){const d=parseYmd(s);d.setDate(d.getDate()+n);return ymd(d)
 function daysBetween(s1,s2){return Math.round((parseYmd(s2)-parseYmd(s1))/86400000);}
 
 // スポット休日（マスクリックで設定）
-function getSpotHolidays(){try{return JSON.parse(localStorage.getItem('ichilole_v12_holidays')||'{}');}catch(e){return{};}}
+function getSpotHolidays(){try{return JSON.parse(localStorage.getItem('holidays')||'{}');}catch(e){return{};}}
 function toggleHoliday(e,dateStr){
   e.stopPropagation();
   const sh=getSpotHolidays();
   if(sh[dateStr])delete sh[dateStr];else sh[dateStr]=true;
-  localStorage.setItem('ichilole_v12_holidays',JSON.stringify(sh));
+  localStorage.setItem('holidays',JSON.stringify(sh));
   renderCal();
 }
 function isHoliday(dateStr,cfg){
@@ -1819,7 +1821,7 @@ let memoTimer=null;
 function autoSaveMemo(i,v){
   cases[i].memo=v;
   clearTimeout(memoTimer);
-  memoTimer=setTimeout(()=>{localStorage.setItem('ichilole_v10_cases',JSON.stringify(cases));},600);
+  memoTimer=setTimeout(()=>{localStorage.setItem('cases',JSON.stringify(cases));},600);
 }
 // ===== ARCHIVE PERMANENT DELETE =====
 function deleteFromArchive(i){
@@ -1834,7 +1836,7 @@ function exportBackup(){
   const invseq={};
   for(let i=0;i<localStorage.length;i++){
     const k=localStorage.key(i);
-    if(k&&k.startsWith('ichilole_v10_invseq_'))invseq[k]=localStorage.getItem(k);
+    if(k&&k.startsWith('invseq_'))invseq[k]=localStorage.getItem(k);
   }
   const data={
     exported:new Date().toISOString(),version:'v15_7',
@@ -1911,15 +1913,15 @@ function importBackup(){
         if(!confirm('現在のデータを上書きしてインポートしますか？\nこの操作は取り消せません。'))return;
         if(Array.isArray(data.cases))cases=data.cases;
         if(Array.isArray(data.archive))archive=data.archive;
-        if(data.settings)localStorage.setItem('ichilole_v10_cfg',JSON.stringify({...DEF_CFG,...data.settings}));
-        if(data.profile)localStorage.setItem('ichilole_v10_profile',JSON.stringify({...DEF_PROF,...data.profile}));
+        if(data.settings)localStorage.setItem('cfg',JSON.stringify({...DEF_CFG,...data.settings}));
+        if(data.profile)localStorage.setItem('profile',JSON.stringify({...DEF_PROF,...data.profile}));
         if(data.invseq&&typeof data.invseq==='object'){
           Object.entries(data.invseq).forEach(([k,v])=>{
-            if(k.startsWith('ichilole_v10_invseq_'))localStorage.setItem(k,String(v));
+            if(k.startsWith('invseq_'))localStorage.setItem(k,String(v));
           });
         }
         if(data.spotHolidays&&typeof data.spotHolidays==='object'){
-          localStorage.setItem('ichilole_v12_holidays',JSON.stringify(data.spotHolidays));
+          localStorage.setItem('holidays',JSON.stringify(data.spotHolidays));
         }
         loadSettingsUI();updateSettingsLabels();
         saveAll();render();
@@ -2002,7 +2004,7 @@ function printInvoicePDF(){
   if(!invNum){
     invNum=getNextInvNum();
     c.invNum=invNum;
-    localStorage.setItem('ichilole_v10_cases',JSON.stringify(cases));
+    localStorage.setItem('cases',JSON.stringify(cases));
     updateInvSeqPreview();
   }
   const price=c.price?parseInt(c.price).toLocaleString():'{{料金}}';
@@ -2014,7 +2016,7 @@ function printInvoicePDF(){
     .map(l=>`<div style="margin-bottom:3px;font-size:12px">${hl(l.trim())}</div>`).join('');
 
   const breakdownHTML=buildInvBreakdown(c.estimateData||null, price, covA, usgA);
-  const filename=`【ご請求書】ichilole ${todayStr} ${invNum}`;
+  const filename=(`【ご請求書】${prof.name?prof.name+' ':''}${todayStr} ${invNum}`).trim();
 
   navigator.clipboard.writeText(filename).then(()=>{
     showInvToast('📋 ファイル名をコピーしました → 保存ダイアログの「名前」欄に貼り付けてください');
@@ -2061,12 +2063,7 @@ function printInvoicePDF(){
   </div>
 
   <!-- 備考 -->
-  <div style="font-size:11px;color:#555;border-top:1px solid #ddd;padding-top:12px;line-height:2.2">
-    <div>・お支払い確認後に制作を開始いたします。</div>
-    <div>・着手から納品まで原則2週間いただいております。</div>
-    <div>・決済手数料（PayPal等）はご依頼者様のご負担となります。</div>
-    <div>・ご不明な点はhttps://ichilole.com/policy/ をご覧の上、お気軽にお問い合わせください。</div>
-  </div>
+  ${prof.invNotes?`<div style="font-size:11px;color:#555;border-top:1px solid #ddd;padding-top:12px;line-height:2.2">${prof.invNotes.split('\\n').map(l=>`<div>${hl(l)}</div>`).join('')}</div>`:''}
 
 </div>`;
 
@@ -2184,8 +2181,8 @@ const CL_DATA=[
 
 let clCid=null,clTab='intake';
 
-function clStore(){let d={};try{d=JSON.parse(localStorage.getItem('ichilole_checklist')||'{}');}catch(e){}return d;}
-function clSave(d){localStorage.setItem('ichilole_checklist',JSON.stringify(d));}
+function clStore(){let d={};try{d=JSON.parse(localStorage.getItem('checklist')||'{}');}catch(e){}return d;}
+function clSave(d){localStorage.setItem('checklist',JSON.stringify(d));}
 function clDelCase(cid){if(!cid)return;const d=clStore();delete d[cid];clSave(d);}
 
 function openChecklist(e,i){
@@ -2321,5 +2318,11 @@ document.getElementById('case-list').addEventListener('click',e=>{
 <!-- ファイル名コピートースト -->
 <div id="inv-toast-el" class="inv-toast"></div>
 
+<script>
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/dashboard/sw.js')
+    .catch(e=>console.warn('SW registration failed:',e));
+}
+</script>
 </body>
 </html>
