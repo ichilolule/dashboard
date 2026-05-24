@@ -1,7 +1,7 @@
 // sw.js — studio mizumochi dashboard
 // キャッシュ名を変えると古いキャッシュが自動削除される
 // index.html のバージョンアップ時はここも合わせて更新する
-const CACHE = 'dashboard-v18';
+const CACHE = 'dashboard-v19';
 
 // ===== インストール =====
 // 起動に最低限必要なファイルだけ事前キャッシュ
