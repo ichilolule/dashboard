@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="案件管理">
 <meta name="theme-color" content="#714944">
 
-<title>案件管理 v20</title>
+<title>案件管理 v21</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -310,7 +310,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 <body>
 <h2 class="sr-only">案件管理ダッシュボード</h2>
 <div class="top-bar">
-  <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理 <span style="font-size:11px;opacity:.7">v20</span></span>
+  <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理 <span style="font-size:11px;opacity:.7">v21</span></span>
   <div style="display:flex;align-items:center;gap:8px">
     <button class="sync-btn" onclick="exportBackup()" title="dashboard_sync.json を書き出す"><i class="ti ti-upload"></i> 同期</button>
     <button class="sync-btn" onclick="importBackup()" title="dashboard_sync.json を読み込む"><i class="ti ti-download"></i> 読み込み</button>
@@ -1840,7 +1840,7 @@ function exportBackup(){
     if(k&&k.startsWith('invseq_'))invseq[k]=localStorage.getItem(k);
   }
   const data={
-    exported:new Date().toISOString(),version:'v20',
+    exported:new Date().toISOString(),version:'v21',
     cases,archive,
     settings:getCfg(),profile:getProfile(),invseq,
     spotHolidays:getSpotHolidays()
@@ -2294,12 +2294,11 @@ function clRenderPanels(){
 loadSettingsUI();updateSettingsLabels();renderCharsEst();calcEst();render();
 
 // ===== ダイアログ外側クリックで閉じる =====
-// <dialog>はESCキーで自動的に閉じるが、外側クリックは自前で実装する必要がある
+// mousedown・mouseup の両方が背景上にある時のみ閉じる（内側でドラッグして外でリリースした場合は閉じない）
 document.querySelectorAll('dialog.overlay').forEach(dlg=>{
-  dlg.addEventListener('click',e=>{
-    // ダイアログ自身（=モーダル外の透明領域）をクリックした時のみ閉じる
-    if(e.target===dlg)dlg.close();
-  });
+  let _mdOnBg=false;
+  dlg.addEventListener('mousedown',e=>{ _mdOnBg=(e.target===dlg); });
+  dlg.addEventListener('click',e=>{ if(e.target===dlg&&_mdOnBg)dlg.close(); });
 });
 
 // ===== カードクリックのイベント委譲 =====
