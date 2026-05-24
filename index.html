@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="案件管理">
 <meta name="theme-color" content="#714944">
 
-<title>案件管理 v19</title>
+<title>案件管理 v20</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -310,7 +310,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 <body>
 <h2 class="sr-only">案件管理ダッシュボード</h2>
 <div class="top-bar">
-  <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理 <span style="font-size:11px;opacity:.7">v19</span></span>
+  <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理 <span style="font-size:11px;opacity:.7">v20</span></span>
   <div style="display:flex;align-items:center;gap:8px">
     <button class="sync-btn" onclick="exportBackup()" title="dashboard_sync.json を書き出す"><i class="ti ti-upload"></i> 同期</button>
     <button class="sync-btn" onclick="importBackup()" title="dashboard_sync.json を読み込む"><i class="ti ti-download"></i> 読み込み</button>
@@ -1147,24 +1147,24 @@ function saveCase(){
 // ===== EMAIL TEMPLATES =====
 const TMPL={
   ja:{
-    estimate:{subject:'【お見積もり】イラスト制作のご案内｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前}}です。\n\n内容を確認いたしましたので、お見積もりをお送りいたします。\n\n─────────────────────\n\n【お見積もり内容】\n　依頼内容　　：{{〜〜イラスト制作のご請求}}\n　ご請求金額　：¥{{料金}}\n　希望納期　　：{{希望納期}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\nご確認いただけましたら、ご承諾の旨をお知らせください。\n請求書をお送りいたします。\n\nご不明な点はお気軽にご連絡ください。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
+    estimate:{subject:'【お見積もり】イラスト制作のご案内｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前のみ}}です。\n\n内容を確認いたしましたので、お見積もりをお送りいたします。\n\n─────────────────────\n\n【お見積もり内容】\n　依頼内容　　：{{〜〜イラスト制作のご請求}}\n　ご請求金額　：¥{{料金}}\n　希望納期　　：{{希望納期}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\nご確認いただけましたら、ご承諾の旨をお知らせください。\n請求書をお送りいたします。\n\nご不明な点はお気軽にご連絡ください。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
     invoice:{subject:'【ご請求】イラスト制作のご請求｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。\n制作のご請求書をお送りいたします。\n\nお支払い確認後、制作を開始いたします。\nご不明な点がございましたら、お気軽にお申し付けください。\n\n─────────────────────\n\n【請求内容】\n　請求書番号　：{{請求書番号}}\n　発行日　　　：{{今日の日付}}\n　お支払い期限：{{支払い期限}}\n　ご請求金額　：¥{{料金}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
-    roughDraft:{subject:'【大ラフ】イラストのご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前}}です。\n大ラフが完成いたしましたので、ご確認をお願いいたします。\n\n─────────────────────\n\n【ご確認いただきたい点】\n　・全体の構図・ポーズ\n　・キャラクターのデザイン・顔の向き\n　・その他、イメージと異なる点\n\nこの段階では構図やデザインなど大きな変更が可能です。\n修正は2回まで無償で承っております。\n\n気になる点がありましたら、遠慮なくご連絡ください。\n\n─────────────────────\n\n{{署名}}'},
-    lineArt:{subject:'【清書前ラフ】清書前イラストのご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前}}です。\n清書前ラフが完成いたしましたので、ご確認をお願いいたします。\n\n─────────────────────\n\n【ご確認いただきたい点】\n　・ポーズの微調整\n　・表情・細部のバランス\n　・その他、気になる点\n\nこの段階からは細部の調整が中心となります。\n大きな変更がある場合は、お早めにご連絡ください。\n\n─────────────────────\n\n{{署名}}'},
-    delivery:{subject:'【納品】完成原稿のご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前}}です。\nイラストが完成いたしましたのでお届けいたします。\n\n─────────────────────\n\n【納品ファイル】\n　形式　：{{納品形式}}\n\nご確認いただき、問題がなければそのままご使用ください。\n納品後7日間ご連絡がない場合は、完了とさせていただきます。\n\nご利用の際は、申告いただいた用途の範囲内でお使いください。\n二次配布・転売・AI学習への使用はご遠慮いただいております。\n\n小物忘れなどがありましたら折り返しご連絡をお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
-    payment:{subject:'お支払い期日のご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前}}です。\n\nご案内の請求書につきまして、お支払い期日が2日後になりましたのでご連絡いたしました。\n期日以降は自動でキャンセルとなっております。\n\n期日以降は納期変更のうえ再度ご相談いただけましたら、可能な範囲で対応いたしますので、お気軽にご連絡ください。\n\nすでにご対応済みでしたら、行き違いとなりましたことご容赦ください。\nよろしくお願いいたします。\n\n─────────────────────\n\n【お支払い情報】\n　お支払い期限　：{{支払い期限}}\n　ご請求金額　　：¥{{料金}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
-    decline_soft:{subject:'ご依頼について｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前}}です。\n\n内容を拝見いたしましたが、現在の状況では\nご希望に沿った形でのご対応が難しい状況です。\nせっかくお声がけいただきましたのに、大変申し訳ございません。\n\nまたご依頼の機会がございましたら、ぜひお声がけください。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
-    decline_hard:{subject:'ご依頼について｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前}}です。\n\n誠に恐れ入りますが、今回はご依頼をお受けすることが\n難しい状況です。\n\nお力になれず申し訳ございません。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'}
+    roughDraft:{subject:'【大ラフ】イラストのご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前のみ}}です。\n大ラフが完成いたしましたので、ご確認をお願いいたします。\n\n─────────────────────\n\n【ご確認いただきたい点】\n　・全体の構図・ポーズ\n　・キャラクターのデザイン・顔の向き\n　・その他、イメージと異なる点\n\nこの段階では構図やデザインなど大きな変更が可能です。\n修正は2回まで無償で承っております。\n\n気になる点がありましたら、遠慮なくご連絡ください。\n\n─────────────────────\n\n{{署名}}'},
+    lineArt:{subject:'【清書前ラフ】清書前イラストのご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前のみ}}です。\n清書前ラフが完成いたしましたので、ご確認をお願いいたします。\n\n─────────────────────\n\n【ご確認いただきたい点】\n　・ポーズの微調整\n　・表情・細部のバランス\n　・その他、気になる点\n\nこの段階からは細部の調整が中心となります。\n大きな変更がある場合は、お早めにご連絡ください。\n\n─────────────────────\n\n{{署名}}'},
+    delivery:{subject:'【納品】完成原稿のご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前のみ}}です。\nイラストが完成いたしましたのでお届けいたします。\n\n─────────────────────\n\n【納品ファイル】\n　形式　：{{納品形式}}\n\nご確認いただき、問題がなければそのままご使用ください。\n納品後7日間ご連絡がない場合は、完了とさせていただきます。\n\nご利用の際は、申告いただいた用途の範囲内でお使いください。\n二次配布・転売・AI学習への使用はご遠慮いただいております。\n\n小物忘れなどがありましたら折り返しご連絡をお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
+    payment:{subject:'お支払い期日のご確認｜{{名前}}',body:'{{依頼者名}}様\n\nお世話になっております。{{名前のみ}}です。\n\nご案内の請求書につきまして、お支払い期日が2日後になりましたのでご連絡いたしました。\n期日以降は自動でキャンセルとなっております。\n\n期日以降は納期変更のうえ再度ご相談いただけましたら、可能な範囲で対応いたしますので、お気軽にご連絡ください。\n\nすでにご対応済みでしたら、行き違いとなりましたことご容赦ください。\nよろしくお願いいたします。\n\n─────────────────────\n\n【お支払い情報】\n　お支払い期限　：{{支払い期限}}\n　ご請求金額　　：¥{{料金}}\n\n【お支払い方法】\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
+    decline_soft:{subject:'ご依頼について｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前のみ}}です。\n\n内容を拝見いたしましたが、現在の状況では\nご希望に沿った形でのご対応が難しい状況です。\nせっかくお声がけいただきましたのに、大変申し訳ございません。\n\nまたご依頼の機会がございましたら、ぜひお声がけください。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'},
+    decline_hard:{subject:'ご依頼について｜{{名前}}',body:'{{依頼者名}}様\n\nこの度はご依頼いただきありがとうございます。{{名前のみ}}です。\n\n誠に恐れ入りますが、今回はご依頼をお受けすることが\n難しい状況です。\n\nお力になれず申し訳ございません。\nどうぞよろしくお願いいたします。\n\n─────────────────────\n\n{{署名}}'}
   },
   en:{
-    estimate:{subject:'[Quotation] Illustration Commission | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you very much for your commission. This is {{名前}}.\n\nI have reviewed the details and have provided an estimate below.\n\n─────────────────────\n\n[Quotation Details]\n　Description: {{〜〜イラスト制作のご請求}}\n　Total Amount: ¥{{料金}}\n　Requested Deadline: {{希望納期}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\nIf everything looks correct, please let me know your approval.\nI will then proceed to send the formal invoice.\n\nIf you have any questions, please feel free to reach out.\nBest regards,\n\n─────────────────────\n\n{{署名}}'},
+    estimate:{subject:'[Quotation] Illustration Commission | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you very much for your commission. This is {{名前のみ}}.\n\nI have reviewed the details and have provided an estimate below.\n\n─────────────────────\n\n[Quotation Details]\n　Description: {{〜〜イラスト制作のご請求}}\n　Total Amount: ¥{{料金}}\n　Requested Deadline: {{希望納期}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\nIf everything looks correct, please let me know your approval.\nI will then proceed to send the formal invoice.\n\nIf you have any questions, please feel free to reach out.\nBest regards,\n\n─────────────────────\n\n{{署名}}'},
     invoice:{subject:'[Invoice] Illustration Commission | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you very much for your commission.\nI am sending the invoice for your commission.\n\nWork will begin after payment is confirmed.\nIf you have any questions, please feel free to let me know.\n\n─────────────────────\n\n[Invoice Details]\n　Invoice Number: {{請求書番号}}\n　Issue Date: {{今日の日付}}\n　Payment Due Date: {{支払い期限}}\n　Total Amount: ¥{{料金}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
-    roughDraft:{subject:'[Rough Draft] Illustration Check-in | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前}}.\nThe initial rough draft is now complete. Please take a look and let me know your thoughts.\n\n─────────────────────\n\n[Points to check]\n　- Overall composition and pose\n　- Character design and facial expressions\n　- Any other points that differ from your initial vision\n\nMajor changes to composition and design are possible at this stage.\nI offer up to two rounds of revisions free of charge.\n\nIf you have any concerns or adjustments, please don\'t hesitate to contact me.\n\n─────────────────────\n\n{{署名}}'},
-    lineArt:{subject:'[Line Art Draft] Illustration Check-in | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前}}.\nThe line art draft is now ready for your review. Please check the following.\n\n─────────────────────\n\n[Points to check]\n　- Fine adjustments to the pose\n　- Balance of facial expressions and details\n　- Any other points of concern\n\nFrom this stage onwards, revisions will focus primarily on fine details.\nIf there are any major changes needed, please let me know as soon as possible.\n\n─────────────────────\n\n{{署名}}'},
-    delivery:{subject:'[Delivery] Completed Illustration | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前}}.\nThe illustration is now complete and ready for download.\n\n─────────────────────\n\n[Delivery Files]\n　Format: {{納品形式}}\n\nPlease check the file(s), and if there are no issues, feel free to use them.\nIf I do not hear from you within 7 days after delivery, the commission will be marked as complete.\n\nPlease use the illustration only within the scope of the intended use you declared.\nSecondary distribution, resale, and use for AI training are strictly prohibited.\n\nIf you notice anything missing or off, please don\'t hesitate to reach out.\n\n─────────────────────\n\n{{署名}}'},
-    payment:{subject:'Payment Due Date Reminder | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前}}.\n\nI am writing to remind you that the payment due date for the previously sent invoice is in two days.\nPlease note that if the payment is not confirmed by the deadline, the commission will be automatically cancelled.\n\nIf the deadline passes, I would be happy to discuss a new schedule and accommodate your request as much as possible, so please feel free to contact me.\n\nIf you have already made the payment, please disregard this email.\nThank you for your cooperation.\n\n─────────────────────\n\n[Payment Information]\n　Due Date: {{支払い期限}}\n　Total Amount: ¥{{料金}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
-    decline_soft:{subject:'Regarding Your Commission Inquiry | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you so much for reaching out to me. This is {{名前}}.\n\nAfter reviewing your request, I\'m afraid I\'m unable to\naccommodate it in a way that meets your expectations at this time.\nI sincerely apologize for any inconvenience this may cause.\n\nI hope we\'ll have the opportunity to work together in the future.\nThank you for your understanding.\n\n─────────────────────\n\n{{署名}}'},
-    decline_hard:{subject:'Regarding Your Commission Inquiry | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you for your interest in my work. This is {{名前}}.\n\nI regret to inform you that I am unable to accept\nyour commission request at this time.\n\nI apologize for any inconvenience this may cause.\nThank you for your understanding.\n\n─────────────────────\n\n{{署名}}'}
+    roughDraft:{subject:'[Rough Draft] Illustration Check-in | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前のみ}}.\nThe initial rough draft is now complete. Please take a look and let me know your thoughts.\n\n─────────────────────\n\n[Points to check]\n　- Overall composition and pose\n　- Character design and facial expressions\n　- Any other points that differ from your initial vision\n\nMajor changes to composition and design are possible at this stage.\nI offer up to two rounds of revisions free of charge.\n\nIf you have any concerns or adjustments, please don\'t hesitate to contact me.\n\n─────────────────────\n\n{{署名}}'},
+    lineArt:{subject:'[Line Art Draft] Illustration Check-in | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前のみ}}.\nThe line art draft is now ready for your review. Please check the following.\n\n─────────────────────\n\n[Points to check]\n　- Fine adjustments to the pose\n　- Balance of facial expressions and details\n　- Any other points of concern\n\nFrom this stage onwards, revisions will focus primarily on fine details.\nIf there are any major changes needed, please let me know as soon as possible.\n\n─────────────────────\n\n{{署名}}'},
+    delivery:{subject:'[Delivery] Completed Illustration | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前のみ}}.\nThe illustration is now complete and ready for download.\n\n─────────────────────\n\n[Delivery Files]\n　Format: {{納品形式}}\n\nPlease check the file(s), and if there are no issues, feel free to use them.\nIf I do not hear from you within 7 days after delivery, the commission will be marked as complete.\n\nPlease use the illustration only within the scope of the intended use you declared.\nSecondary distribution, resale, and use for AI training are strictly prohibited.\n\nIf you notice anything missing or off, please don\'t hesitate to reach out.\n\n─────────────────────\n\n{{署名}}'},
+    payment:{subject:'Payment Due Date Reminder | {{名前}}',body:'Dear {{依頼者名}},\n\nI hope you are doing well. This is {{名前のみ}}.\n\nI am writing to remind you that the payment due date for the previously sent invoice is in two days.\nPlease note that if the payment is not confirmed by the deadline, the commission will be automatically cancelled.\n\nIf the deadline passes, I would be happy to discuss a new schedule and accommodate your request as much as possible, so please feel free to contact me.\n\nIf you have already made the payment, please disregard this email.\nThank you for your cooperation.\n\n─────────────────────\n\n[Payment Information]\n　Due Date: {{支払い期限}}\n　Total Amount: ¥{{料金}}\n\n[Payment Method]\n{{支払い方法}}\n\n─────────────────────\n\n{{署名}}'},
+    decline_soft:{subject:'Regarding Your Commission Inquiry | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you so much for reaching out to me. This is {{名前のみ}}.\n\nAfter reviewing your request, I\'m afraid I\'m unable to\naccommodate it in a way that meets your expectations at this time.\nI sincerely apologize for any inconvenience this may cause.\n\nI hope we\'ll have the opportunity to work together in the future.\nThank you for your understanding.\n\n─────────────────────\n\n{{署名}}'},
+    decline_hard:{subject:'Regarding Your Commission Inquiry | {{名前}}',body:'Dear {{依頼者名}},\n\nThank you for your interest in my work. This is {{名前のみ}}.\n\nI regret to inform you that I am unable to accept\nyour commission request at this time.\n\nI apologize for any inconvenience this may cause.\nThank you for your understanding.\n\n─────────────────────\n\n{{署名}}'}
   }
 };
 
@@ -1264,6 +1264,7 @@ function getSubstitutions(c, type, lang){
     '{{納品形式}}':fmtA.length?fmtA.join(' / '):null,
     '{{署名}}':buildSignature(lang)||null,
     '{{名前}}':[getProfile().studio,getProfile().name].filter(Boolean).join(' - ')||null,
+    '{{名前のみ}}':getProfile().name||null,
   };
 }
 
@@ -1839,7 +1840,7 @@ function exportBackup(){
     if(k&&k.startsWith('invseq_'))invseq[k]=localStorage.getItem(k);
   }
   const data={
-    exported:new Date().toISOString(),version:'v19',
+    exported:new Date().toISOString(),version:'v20',
     cases,archive,
     settings:getCfg(),profile:getProfile(),invseq,
     spotHolidays:getSpotHolidays()
@@ -2033,7 +2034,7 @@ function printInvoicePDF(){
       <div style="font-size:10px;color:#666;letter-spacing:.08em;margin-top:2px">INVOICE</div>
     </div>
     <div style="text-align:right;font-size:11px;color:#333;line-height:2">
-      <div style="font-size:13px;font-weight:700;color:#111;margin-bottom:2px">${hl(prof.name)}</div>
+      <div style="font-size:13px;font-weight:700;color:#111;margin-bottom:2px">${hl([prof.studio,prof.name].filter(Boolean).join(' - '))}</div>
       ${prof.addr?`<div>${hl(prof.addr).replace(/\n/g,'<br>')}</div>`:''}
       <div>${hl(prof.email)}</div>
       <div>${hl(prof.web)}</div>
