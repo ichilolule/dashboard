@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Flashcard</title>
+
+<!-- Tabler Icons (webfont) -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
+
+<!-- React + ReactDOM (UMD) + Babel Standalone -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- JSZip (for backup / restore) -->
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+
+<style>
+  :root {
+    /* Mac 風ライトテーマ */
+    --color-background-primary:   #ffffff;
+    --color-background-secondary: #f5f5f7;
+    --color-background-danger:    #fef2f2;
+
+    --color-text-primary:   #1d1d1f;
+    --color-text-secondary: #515154;
+    --color-text-tertiary:  #86868b;
+    --color-text-danger:    #dc2626;
+    --color-text-info:      #0066cc;
+    --color-text-warning:   #b45309;
+
+    --color-border-tertiary:  #d2d2d7;
+    --color-border-secondary: #a1a1a6;
+    --color-border-danger:    #fca5a5;
+
+    --border-radius-md: 6px;
+    --border-radius-lg: 10px;
+
+    --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'SF Mono', Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    color: var(--color-text-primary);
+    background: var(--color-background-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h2 {
+    font-weight: 600;
+    margin: 0;
+  }
+
+  button {
+    font-family: inherit;
+  }
+
+  button:not(:disabled):hover {
+    filter: brightness(0.97);
+  }
+
+  textarea {
+    font-family: var(--font-mono);
+  }
+
+  /* スクロールバー（Mac風控えめ） */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.35);
+    background-clip: content-box;
+    border: 2px solid transparent;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+// ═══ INDEXEDDB ═════════════════════════════════════════════════════════
+const DB_NAME = 'flashcard-app';
+const DB_VERSION = 1;
+
+let dbPromise = null;
+function getDB() {
+  if (!dbPromise) {
+    dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => resolve(req.result);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('folders')) {
+          const s = db.createObjectStore('folders', { keyPath: 'id', autoIncrement: true });
+          s.createIndex('parentId', 'parentId', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('cards')) {
+          const s = db.createObjectStore('cards', { keyPath: 'id', autoIncrement: true });
+          s.createIndex('folderId', 'folderId', { unique: false });
+        }
+      };
+    });
+  }
+  return dbPromise;
+}
+
+async function dbAll(store) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(store, 'readonly').objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbAdd(store, value) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(store, 'readwrite').objectStore(store).add(value);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbPut(store, value) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(store, 'readwrite').objectStore(store).put(value);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbDelete(store, id) {
+  const db = await getDB();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(store, 'readwrite').objectStore(store).delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ═══ データユーティリティ ═══════════════════════════════════════════════
+function buildFolderTree(folders) {
+  const map = new Map();
+  folders.forEach(f => map.set(f.id, { ...f, children: [] }));
+  const roots = [];
+  map.forEach(node => {
+    if (node.parentId == null) roots.push(node);
+    else {
+      const p = map.get(node.parentId);
+      if (p) p.children.push(node);
+      else roots.push(node);
+    }
+  });
+  const sortRec = (ns) => {
+    ns.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    ns.forEach(n => sortRec(n.children));
+  };
+  sortRec(roots);
+  return roots;
+}
+
+function getDescendantFolderIds(folders, folderId) {
+  const result = new Set([folderId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const f of folders) {
+      if (f.parentId != null && result.has(f.parentId) && !result.has(f.id)) {
+        result.add(f.id);
+        changed = true;
+      }
+    }
+  }
+  return result;
+}
+
+function getFolderPath(folders, folderId) {
+  if (folderId == null) return [];
+  const map = new Map(folders.map(f => [f.id, f]));
+  const path = [];
+  let id = folderId;
+  while (id != null && map.has(id)) {
+    const f = map.get(id);
+    path.unshift(f);
+    id = f.parentId;
+  }
+  return path;
+}
+
+function countCardsInFolder(cards, folders, folderId, includeSubfolders) {
+  if (folderId == null && includeSubfolders) return cards.length;
+  if (includeSubfolders) {
+    const ids = getDescendantFolderIds(folders, folderId);
+    return cards.filter(c => ids.has(c.folderId)).length;
+  }
+  return cards.filter(c => c.folderId === folderId).length;
+}
+
+function getVisibleCards(cards, folders, folderId, includeSubfolders) {
+  let filtered;
+  if (folderId == null && includeSubfolders) {
+    filtered = cards.slice();
+  } else if (includeSubfolders) {
+    const ids = getDescendantFolderIds(folders, folderId);
+    filtered = cards.filter(c => ids.has(c.folderId));
+  } else {
+    filtered = cards.filter(c => c.folderId === folderId);
+  }
+  // 安定順: フォルダ→ファイル名
+  const folderMap = new Map(folders.map(f => [f.id, f]));
+  const folderPath = (id) => {
+    const parts = [];
+    let cur = id;
+    while (cur != null && folderMap.has(cur)) {
+      const f = folderMap.get(cur);
+      parts.unshift(f.name);
+      cur = f.parentId;
+    }
+    return parts.join('/');
+  };
+  return filtered.sort((a, b) => {
+    const pa = folderPath(a.folderId);
+    const pb = folderPath(b.folderId);
+    if (pa !== pb) return pa.localeCompare(pb, 'ja');
+    return a.fileName.localeCompare(b.fileName, 'ja', { numeric: true });
+  });
+}
+
+function shuffleArray(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ═══ バックアップ / 復元 ═══════════════════════════════════════════════
+const MIME_TO_EXT = {
+  'image/jpeg': 'jpg', 'image/jpg': 'jpg',
+  'image/png': 'png', 'image/gif': 'gif',
+  'image/webp': 'webp', 'image/svg+xml': 'svg',
+  'image/bmp': 'bmp', 'image/tiff': 'tif',
+};
+
+function extractExtension(filename) {
+  if (!filename) return null;
+  const m = filename.match(/\.([a-zA-Z0-9]+)$/);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function imageExtFor(card) {
+  return extractExtension(card.fileName) || MIME_TO_EXT[card.blob?.type] || 'bin';
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function backupFileName() {
+  const d = new Date();
+  return `flashcard-backup-${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}.zip`;
+}
+
+async function exportBackup() {
+  if (typeof JSZip === 'undefined') {
+    throw new Error('JSZip が読み込まれていません');
+  }
+  const [foldersAll, cardsAll] = await Promise.all([dbAll('folders'), dbAll('cards')]);
+  const zip = new JSZip();
+
+  const manifest = {
+    version: 1,
+    appName: 'flashcard-app',
+    exportedAt: new Date().toISOString(),
+    folderCount: foldersAll.length,
+    cardCount: cardsAll.length,
+    folders: foldersAll.map(f => ({
+      id: f.id, name: f.name, parentId: f.parentId,
+    })),
+    cards: cardsAll.map(c => ({
+      id: c.id,
+      folderId: c.folderId,
+      fileName: c.fileName,
+      memo: c.memo ?? '',
+      createdAt: c.createdAt ?? Date.now(),
+      imagePath: `images/${c.id}.${imageExtFor(c)}`,
+      mimeType: c.blob?.type || '',
+    })),
+  };
+  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+
+  const imagesDir = zip.folder('images');
+  for (const card of cardsAll) {
+    const ext = imageExtFor(card);
+    imagesDir.file(`${card.id}.${ext}`, card.blob);
+  }
+
+  const zipBlob = await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 6 },
+  });
+
+  const fileName = backupFileName();
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  return { fileName, folderCount: foldersAll.length, cardCount: cardsAll.length };
+}
+
+// 復元（完全置換モード）
+async function importBackupReplace(file) {
+  if (typeof JSZip === 'undefined') {
+    throw new Error('JSZip が読み込まれていません');
+  }
+
+  const zip = await JSZip.loadAsync(file);
+  const manifestEntry = zip.file('manifest.json');
+  if (!manifestEntry) {
+    throw new Error('manifest.json が見つかりません。正しいバックアップファイルですか？');
+  }
+
+  const manifestText = await manifestEntry.async('string');
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestText);
+  } catch {
+    throw new Error('manifest.json の解析に失敗しました');
+  }
+  if (!Array.isArray(manifest.folders) || !Array.isArray(manifest.cards)) {
+    throw new Error('manifest.json の形式が不正です');
+  }
+
+  // ① 既存データを完全消去
+  const db = await getDB();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['folders', 'cards'], 'readwrite');
+    tx.objectStore('folders').clear();
+    tx.objectStore('cards').clear();
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+
+  // ② フォルダを親→子のトポロジカル順で追加し、旧ID→新IDのマップを構築
+  const folderIdMap = new Map();
+  const added = new Set([null]); // ルート（null親）は最初から「追加済み」扱い
+  const remaining = manifest.folders.slice();
+  let safetyLoop = 0;
+  while (remaining.length > 0 && safetyLoop < 100) {
+    let progress = false;
+    for (let i = remaining.length - 1; i >= 0; i--) {
+      const f = remaining[i];
+      const parentOK = f.parentId == null || added.has(f.parentId);
+      if (parentOK) {
+        const mappedParent = f.parentId == null ? null : folderIdMap.get(f.parentId);
+        const newId = await dbAdd('folders', { name: f.name, parentId: mappedParent });
+        folderIdMap.set(f.id, newId);
+        added.add(f.id);
+        remaining.splice(i, 1);
+        progress = true;
+      }
+    }
+    if (!progress) break;
+    safetyLoop++;
+  }
+  // 親が見つからない孤立フォルダはルート直下にフォールバック
+  for (const f of remaining) {
+    const newId = await dbAdd('folders', { name: f.name, parentId: null });
+    folderIdMap.set(f.id, newId);
+  }
+
+  // ③ カードを追加
+  let restoredCards = 0;
+  let missingImages = 0;
+  for (const card of manifest.cards) {
+    const mappedFolder = card.folderId == null
+      ? null
+      : (folderIdMap.has(card.folderId) ? folderIdMap.get(card.folderId) : null);
+
+    // 画像ファイルを探す
+    let imageEntry = card.imagePath ? zip.file(card.imagePath) : null;
+    if (!imageEntry) {
+      // imagePath が無い/古い形式の場合: ID プレフィックスで探す
+      const matches = zip.file(new RegExp(`^images/${card.id}\\.`));
+      if (matches && matches.length > 0) imageEntry = matches[0];
+    }
+    if (!imageEntry) {
+      missingImages++;
+      continue;
+    }
+
+    const rawBlob = await imageEntry.async('blob');
+    // MIMEタイプを復元
+    const typedBlob = card.mimeType
+      ? new Blob([rawBlob], { type: card.mimeType })
+      : rawBlob;
+
+    await dbAdd('cards', {
+      folderId: mappedFolder,
+      fileName: card.fileName || `card-${card.id}`,
+      blob: typedBlob,
+      memo: card.memo || '',
+      createdAt: card.createdAt || Date.now(),
+    });
+    restoredCards++;
+  }
+
+  return {
+    folderCount: folderIdMap.size,
+    cardCount: restoredCards,
+    missingImages,
+  };
+}
+
+// ═══ アップロード処理 ═══════════════════════════════════════════════════
+// HEIC/HEIF はサポート対象外。アップロード時にスキップされます。
+async function uploadFiles(fileList, targetFolderId, existingFolders) {
+  const folders = existingFolders.slice();
+  const cache = new Map();
+  let added = 0;
+  let skipped = 0;
+
+  for (const file of fileList) {
+    const rel = file.webkitRelativePath || file.name;
+    const parts = rel.split('/').filter(Boolean);
+    const fileName = parts.pop();
+    if (!fileName || fileName.startsWith('.')) { skipped++; continue; }
+
+    // HEIC/HEIF は非対応なのでスキップ
+    const isHeic = /\.(heic|heif)$/i.test(file.name) ||
+                   file.type === 'image/heic' || file.type === 'image/heif';
+    if (isHeic) { skipped++; continue; }
+
+    // 画像でなければスキップ
+    if (!file.type.startsWith('image/')) { skipped++; continue; }
+
+    // フォルダパスを解決（必要なら作成）
+    let parentId = targetFolderId;
+    for (const part of parts) {
+      const key = `${parentId ?? 'root'}/${part}`;
+      if (cache.has(key)) { parentId = cache.get(key); continue; }
+      const found = folders.find(f => f.parentId === parentId && f.name === part);
+      if (found) parentId = found.id;
+      else {
+        const newId = await dbAdd('folders', { name: part, parentId });
+        folders.push({ id: newId, name: part, parentId });
+        parentId = newId;
+      }
+      cache.set(key, parentId);
+    }
+
+    // File オブジェクトは OS ファイルへの遅延参照を持つため、
+    // ページリロード後に Safari で参照が無効化されることがある。
+    // 真の Blob にコピーすることで永続化を確実にする。
+    let safeBlob;
+    try {
+      const ab = await file.arrayBuffer();
+      safeBlob = new Blob([ab], { type: file.type });
+    } catch (err) {
+      console.warn(`Failed to read file ${fileName}:`, err);
+      skipped++;
+      continue;
+    }
+
+    await dbAdd('cards', {
+      folderId: parentId,
+      fileName,
+      blob: safeBlob,
+      memo: '',
+      createdAt: Date.now(),
+    });
+    added++;
+  }
+  return { added, skipped, folders };
+}
+
+// ═══ ローカルストレージ設定 ═════════════════════════════════════════════
+const LS_FOLDER = 'flashcard-current-folder';
+const LS_ORDER = 'flashcard-order-mode';
+const LS_SUBFOLDERS = 'flashcard-include-subfolders';
+const LS_EXPANDED = 'flashcard-expanded-folders';
+
+function lsGet(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    if (v == null) return fallback;
+    return JSON.parse(v);
+  } catch { return fallback; }
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+// ═══ キーボードフック ═══════════════════════════════════════════════════
+function useKeyboard(handlers) {
+  const ref = useRef(handlers);
+  useEffect(() => { ref.current = handlers; }, [handlers]);
+  useEffect(() => {
+    const h = (e) => {
+      const t = e.target;
+      if (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.isContentEditable) return;
+      const fn = ref.current[e.key];
+      if (fn) { e.preventDefault(); fn(e); }
+    };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, []);
+}
+
+// ═══ UI: フォルダツリー ═════════════════════════════════════════════════
+function FolderNode({
+  node, depth, selectedId, expanded, onSelect, onToggle,
+  onDelete, onDuplicate, onStartMove, cardCount,
+  movingFolderId, disabledMoveIds,
+}) {
+  const isSelected = selectedId === node.id;
+  const hasChildren = node.children.length > 0;
+  const isExpanded = expanded.has(node.id);
+  const [hover, setHover] = useState(false);
+
+  const isBeingMoved = movingFolderId === node.id;
+  const isDisabled = disabledMoveIds.has(node.id);
+  const inMoveMode = movingFolderId != null;
+
+  return (
+    <div>
+      <div
+        onMouseEnter={() => !isDisabled && setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onClick={() => { if (!isDisabled) onSelect(node.id); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '4px 6px',
+          paddingLeft: 6 + depth * 14,
+          cursor: isDisabled ? 'not-allowed' : 'pointer',
+          background: isBeingMoved
+            ? 'var(--color-background-secondary)'
+            : (isSelected ? 'var(--color-background-primary)' : 'transparent'),
+          border: isBeingMoved
+            ? '0.5px dashed var(--color-text-info)'
+            : (isSelected ? '0.5px solid var(--color-border-secondary)' : '0.5px solid transparent'),
+          borderRadius: 'var(--border-radius-md)',
+          fontSize: 12,
+          color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+          opacity: isDisabled ? 0.35 : 1,
+          userSelect: 'none',
+          transition: 'background 0.1s',
+        }}>
+        <span
+          onClick={(e) => { e.stopPropagation(); if (hasChildren && !isDisabled) onToggle(node.id); }}
+          style={{
+            width: 14, fontSize: 10, textAlign: 'center',
+            color: 'var(--color-text-tertiary)',
+            visibility: hasChildren ? 'visible' : 'hidden',
+            flexShrink: 0,
+          }}>
+          <i className={`ti ti-chevron-${isExpanded ? 'down' : 'right'}`} aria-hidden="true" />
+        </span>
+        <i
+          className={`ti ti-folder${isExpanded && hasChildren ? '-open' : ''}`}
+          aria-hidden="true"
+          style={{ fontSize: 13, color: 'var(--color-text-tertiary)', flexShrink: 0 }}
+        />
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {node.name}
+        </span>
+        <span style={{
+          fontSize: 10, color: 'var(--color-text-tertiary)',
+          fontFamily: 'var(--font-mono)', flexShrink: 0,
+        }}>
+          {cardCount}
+        </span>
+        {hover && !inMoveMode && (
+          <React.Fragment>
+            <button
+              onClick={(e) => { e.stopPropagation(); onStartMove(node.id); }}
+              title="このフォルダを移動"
+              style={{
+                padding: '0 4px', fontSize: 11,
+                background: 'transparent', border: 'none',
+                color: 'var(--color-text-tertiary)',
+                cursor: 'pointer', flexShrink: 0,
+              }}>
+              <i className="ti ti-arrows-move" aria-hidden="true" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDuplicate(node.id); }}
+              title="このフォルダを複製（構造のみ）"
+              style={{
+                padding: '0 4px', fontSize: 11,
+                background: 'transparent', border: 'none',
+                color: 'var(--color-text-tertiary)',
+                cursor: 'pointer', flexShrink: 0,
+              }}>
+              <i className="ti ti-copy" aria-hidden="true" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(node.id); }}
+              title="このフォルダを削除"
+              style={{
+                padding: '0 4px', fontSize: 11,
+                background: 'transparent', border: 'none',
+                color: 'var(--color-text-tertiary)',
+                cursor: 'pointer', flexShrink: 0,
+              }}>
+              <i className="ti ti-trash" aria-hidden="true" />
+            </button>
+          </React.Fragment>
+        )}
+      </div>
+      {isExpanded && hasChildren && (
+        <div>
+          {node.children.map(child => (
+            <FolderNode
+              key={child.id} node={child} depth={depth + 1}
+              selectedId={selectedId} expanded={expanded}
+              onSelect={onSelect} onToggle={onToggle}
+              onDelete={onDelete} onDuplicate={onDuplicate} onStartMove={onStartMove}
+              cardCount={child._cardCount}
+              movingFolderId={movingFolderId} disabledMoveIds={disabledMoveIds}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══ UI: サイドバー ═════════════════════════════════════════════════════
+function Sidebar({
+  folders, cards, tree, currentFolderId, includeSubfolders,
+  expanded, onSelectFolder, onToggleExpand,
+  onDeleteFolder, onDuplicateFolder, onStartMoveFolder,
+  onUploadFolder, onUploadFiles, uploading,
+  // v2: 新規フォルダ作成
+  creatingFolder, newFolderName, onNewFolderNameChange,
+  onStartCreateFolder, onConfirmCreateFolder, onCancelCreateFolder,
+  // v2: フォルダ移動
+  movingFolderId, onCancelMoveFolder,
+  // v3: バックアップ・復元
+  onExportBackup, onImportBackup,
+}) {
+  // 各ノードに該当カード数を埋める
+  const annotate = (node) => {
+    const ids = getDescendantFolderIds(folders, node.id);
+    node._cardCount = cards.filter(c => ids.has(c.folderId)).length;
+    node.children.forEach(annotate);
+  };
+  tree.forEach(annotate);
+
+  const rootCount = cards.length;
+  const isRootSelected = currentFolderId == null;
+
+  const inMoveMode = movingFolderId != null;
+  const movingFolder = inMoveMode ? folders.find(f => f.id === movingFolderId) : null;
+  const disabledMoveIds = inMoveMode
+    ? getDescendantFolderIds(folders, movingFolderId)
+    : new Set();
+  // 移動中フォルダの現在の親も「移動しても変化なし」なので無効化（任意・分かりやすさ重視）
+  // ここでは無効化せず、handleSelectFolder 側で同親ならキャンセル扱いにする
+
+  // 新規フォルダの親名表示
+  const newFolderParentName = creatingFolder?.parentId != null
+    ? folders.find(f => f.id === creatingFolder.parentId)?.name
+    : null;
+
+  const topButtonsDisabled = uploading || inMoveMode;
+
+  return (
+    <div style={{
+      width: 240, flexShrink: 0,
+      borderRight: '0.5px solid var(--color-border-tertiary)',
+      display: 'flex', flexDirection: 'column',
+      height: '100%', overflow: 'hidden',
+    }}>
+      {/* ヘッダー */}
+      <div style={{
+        padding: '10px 12px',
+        borderBottom: '0.5px solid var(--color-border-tertiary)',
+        display: 'flex', flexDirection: 'column', gap: 6,
+      }}>
+        <span style={{
+          fontSize: 10, fontWeight: 500, letterSpacing: 2,
+          color: 'var(--color-text-tertiary)',
+          fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
+        }}>Folders</span>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={onUploadFolder}
+            disabled={topButtonsDisabled}
+            style={{
+              flex: 1, padding: '5px 8px', fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              background: 'var(--color-background-secondary)',
+              border: '0.5px solid var(--color-border-tertiary)',
+              borderRadius: 'var(--border-radius-md)',
+              color: 'var(--color-text-secondary)',
+              cursor: topButtonsDisabled ? 'not-allowed' : 'pointer',
+              opacity: topButtonsDisabled ? 0.5 : 1,
+            }}>
+            <i className="ti ti-folder-plus" aria-hidden="true" style={{ marginRight: 4 }} />
+            フォルダ
+          </button>
+          <button
+            onClick={onUploadFiles}
+            disabled={topButtonsDisabled}
+            style={{
+              flex: 1, padding: '5px 8px', fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              background: 'var(--color-background-secondary)',
+              border: '0.5px solid var(--color-border-tertiary)',
+              borderRadius: 'var(--border-radius-md)',
+              color: 'var(--color-text-secondary)',
+              cursor: topButtonsDisabled ? 'not-allowed' : 'pointer',
+              opacity: topButtonsDisabled ? 0.5 : 1,
+            }}>
+            <i className="ti ti-photo-plus" aria-hidden="true" style={{ marginRight: 4 }} />
+            画像
+          </button>
+        </div>
+        <button
+          onClick={onStartCreateFolder}
+          disabled={topButtonsDisabled || !!creatingFolder}
+          style={{
+            padding: '5px 8px', fontSize: 11,
+            fontFamily: 'var(--font-mono)',
+            background: 'var(--color-background-secondary)',
+            border: '0.5px solid var(--color-border-tertiary)',
+            borderRadius: 'var(--border-radius-md)',
+            color: 'var(--color-text-secondary)',
+            cursor: (topButtonsDisabled || creatingFolder) ? 'not-allowed' : 'pointer',
+            opacity: (topButtonsDisabled || creatingFolder) ? 0.5 : 1,
+          }}>
+          <i className="ti ti-folder-plus" aria-hidden="true" style={{ marginRight: 4 }} />
+          新規フォルダ
+        </button>
+      </div>
+
+      {/* 移動モードバナー */}
+      {inMoveMode && movingFolder && (
+        <div style={{
+          padding: '8px 12px',
+          background: 'var(--color-background-secondary)',
+          borderBottom: '0.5px solid var(--color-border-tertiary)',
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 11, color: 'var(--color-text-info)',
+        }}>
+          <i className="ti ti-arrows-move" aria-hidden="true" style={{ fontSize: 13, flexShrink: 0 }} />
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            「{movingFolder.name}」の移動先を選択
+          </span>
+          <button
+            onClick={onCancelMoveFolder}
+            title="キャンセル (Esc)"
+            style={{
+              padding: '2px 4px', fontSize: 11,
+              background: 'transparent', border: 'none',
+              color: 'var(--color-text-tertiary)',
+              cursor: 'pointer', flexShrink: 0,
+            }}>
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
+      {/* 新規フォルダ作成入力欄 */}
+      {creatingFolder && (
+        <div style={{
+          padding: '8px 12px',
+          background: 'var(--color-background-secondary)',
+          borderBottom: '0.5px solid var(--color-border-tertiary)',
+        }}>
+          <div style={{
+            fontSize: 10, color: 'var(--color-text-tertiary)',
+            fontFamily: 'var(--font-mono)', marginBottom: 4,
+          }}>
+            {newFolderParentName ? `${newFolderParentName} の下に作成` : 'ルートに作成'}
+          </div>
+          <input
+            autoFocus
+            type="text"
+            value={newFolderName}
+            onChange={(e) => onNewFolderNameChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); onConfirmCreateFolder(); }
+              else if (e.key === 'Escape') { e.preventDefault(); onCancelCreateFolder(); }
+            }}
+            onBlur={() => {
+              if (newFolderName.trim()) onConfirmCreateFolder();
+              else onCancelCreateFolder();
+            }}
+            placeholder="フォルダ名を入力 (Enter で確定)"
+            style={{
+              width: '100%', padding: '5px 8px', fontSize: 12,
+              fontFamily: 'var(--font-sans)',
+              background: 'var(--color-background-primary)',
+              border: '0.5px solid var(--color-border-secondary)',
+              borderRadius: 'var(--border-radius-md)',
+              color: 'var(--color-text-primary)',
+              outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+      )}
+
+      {/* ツリー */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px' }}>
+        {/* ルートエントリ */}
+        <div
+          onClick={() => onSelectFolder(null)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '4px 6px',
+            cursor: 'pointer',
+            background: isRootSelected && !inMoveMode ? 'var(--color-background-primary)' : 'transparent',
+            border: isRootSelected && !inMoveMode ? '0.5px solid var(--color-border-secondary)' : '0.5px solid transparent',
+            borderRadius: 'var(--border-radius-md)',
+            fontSize: 12,
+            color: isRootSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+            userSelect: 'none', marginBottom: 2,
+          }}>
+          <span style={{ width: 14, flexShrink: 0 }} />
+          <i className="ti ti-folders" aria-hidden="true"
+             style={{ fontSize: 13, color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>
+            すべて
+            {inMoveMode && (
+              <span style={{ color: 'var(--color-text-info)', marginLeft: 4 }}>
+                ← ルートへ
+              </span>
+            )}
+          </span>
+          <span style={{
+            fontSize: 10, color: 'var(--color-text-tertiary)',
+            fontFamily: 'var(--font-mono)', flexShrink: 0,
+          }}>
+            {rootCount}
+          </span>
+        </div>
+        {tree.map(node => (
+          <FolderNode
+            key={node.id} node={node} depth={0}
+            selectedId={currentFolderId} expanded={expanded}
+            onSelect={onSelectFolder} onToggle={onToggleExpand}
+            onDelete={onDeleteFolder} onDuplicate={onDuplicateFolder}
+            onStartMove={onStartMoveFolder}
+            cardCount={node._cardCount}
+            movingFolderId={movingFolderId} disabledMoveIds={disabledMoveIds}
+          />
+        ))}
+        {tree.length === 0 && rootCount === 0 && (
+          <p style={{
+            fontSize: 11, color: 'var(--color-text-tertiary)',
+            textAlign: 'center', padding: '20px 8px', lineHeight: 1.5,
+          }}>
+            フォルダか画像を<br/>アップロードしてください
+          </p>
+        )}
+      </div>
+
+      {/* v3: フッター — バックアップ・復元 */}
+      <div style={{
+        padding: '8px 12px',
+        borderTop: '0.5px solid var(--color-border-tertiary)',
+        display: 'flex', gap: 4,
+        flexShrink: 0,
+      }}>
+        <button
+          onClick={onExportBackup}
+          disabled={topButtonsDisabled}
+          title="全データを ZIP ファイルとして書き出し"
+          style={{
+            flex: 1, padding: '5px 8px', fontSize: 11,
+            fontFamily: 'var(--font-mono)',
+            background: 'var(--color-background-secondary)',
+            border: '0.5px solid var(--color-border-tertiary)',
+            borderRadius: 'var(--border-radius-md)',
+            color: 'var(--color-text-secondary)',
+            cursor: topButtonsDisabled ? 'not-allowed' : 'pointer',
+            opacity: topButtonsDisabled ? 0.5 : 1,
+          }}>
+          <i className="ti ti-download" aria-hidden="true" style={{ marginRight: 4 }} />
+          バックアップ
+        </button>
+        <button
+          onClick={onImportBackup}
+          disabled={topButtonsDisabled}
+          title="バックアップ ZIP から復元（現在のデータは置き換えられます）"
+          style={{
+            flex: 1, padding: '5px 8px', fontSize: 11,
+            fontFamily: 'var(--font-mono)',
+            background: 'var(--color-background-secondary)',
+            border: '0.5px solid var(--color-border-tertiary)',
+            borderRadius: 'var(--border-radius-md)',
+            color: 'var(--color-text-secondary)',
+            cursor: topButtonsDisabled ? 'not-allowed' : 'pointer',
+            opacity: topButtonsDisabled ? 0.5 : 1,
+          }}>
+          <i className="ti ti-upload" aria-hidden="true" style={{ marginRight: 4 }} />
+          復元
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══ UI: トグルボタン ═══════════════════════════════════════════════════
+function Segment({ options, value, onChange }) {
+  return (
+    <div style={{
+      display: 'inline-flex',
+      background: 'var(--color-background-secondary)',
+      border: '0.5px solid var(--color-border-tertiary)',
+      borderRadius: 'var(--border-radius-md)',
+      padding: 2, gap: 2,
+    }}>
+      {options.map(({ value: v, label, icon }) => {
+        const active = value === v;
+        return (
+          <button
+            key={String(v)}
+            onClick={() => onChange(v)}
+            style={{
+              padding: '4px 10px', fontSize: 11,
+              fontFamily: 'var(--font-mono)',
+              fontWeight: active ? 600 : 400,
+              background: active ? 'var(--color-background-primary)' : 'transparent',
+              color: active ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+              border: active ? '0.5px solid var(--color-border-secondary)' : '0.5px solid transparent',
+              borderRadius: 'calc(var(--border-radius-md) - 3px)',
+              cursor: 'pointer', letterSpacing: 0.5,
+            }}>
+            {icon && <i className={`ti ti-${icon}`} aria-hidden="true" style={{ marginRight: 4 }} />}
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ═══ UI: カードビュー ═══════════════════════════════════════════════════
+function CardView({
+  card, index, total, imageUrl, memoValue, onMemoChange,
+  onNext, onPrev, onDeleteCard, folderPath,
+}) {
+  // v4: 画像読み込み失敗状態
+  const [imageError, setImageError] = useState(false);
+  useEffect(() => { setImageError(false); }, [card?.id]);
+
+  if (!card) return null;
+
+  return (
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column',
+      padding: '12px 16px', minHeight: 0,
+    }}>
+      {/* パスとファイル名 */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        marginBottom: 8, fontSize: 11, color: 'var(--color-text-tertiary)',
+        fontFamily: 'var(--font-mono)',
+      }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+          {folderPath.length > 0
+            ? folderPath.map(f => f.name).join(' / ') + ' / ' + card.fileName
+            : card.fileName}
+        </span>
+        <button
+          onClick={onDeleteCard}
+          title="このカードを削除"
+          style={{
+            padding: '2px 6px', fontSize: 11,
+            background: 'transparent', border: 'none',
+            color: 'var(--color-text-tertiary)',
+            cursor: 'pointer', flexShrink: 0,
+          }}>
+          <i className="ti ti-trash" aria-hidden="true" />
+        </button>
+      </div>
+
+      {/* 画像（クリックで次へ） */}
+      <div
+        onClick={imageError ? undefined : onNext}
+        style={{
+          flex: '1 1 50%', minHeight: 200,
+          background: imageError ? 'var(--color-background-danger)' : 'var(--color-background-secondary)',
+          border: imageError
+            ? '0.5px solid var(--color-border-danger)'
+            : '0.5px solid var(--color-border-tertiary)',
+          borderRadius: 'var(--border-radius-lg)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: imageError ? 'default' : 'pointer',
+          overflow: 'hidden',
+          marginBottom: 12,
+        }}>
+        {imageError ? (
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            gap: 12, padding: 24, textAlign: 'center',
+            color: 'var(--color-text-danger)',
+          }}>
+            <i className="ti ti-photo-off" aria-hidden="true" style={{ fontSize: 40, opacity: 0.7 }} />
+            <div>
+              <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 500 }}>
+                画像を読み込めません
+              </p>
+              <p style={{
+                margin: 0, fontSize: 11, opacity: 0.8,
+                fontFamily: 'var(--font-mono)',
+                maxWidth: 360, wordBreak: 'break-all',
+              }}>
+                {card.fileName}
+              </p>
+              <p style={{
+                margin: '8px 0 0', fontSize: 10, opacity: 0.7,
+                color: 'var(--color-text-secondary)',
+              }}>
+                ブラウザがファイルへの参照を失いました。<br/>
+                このカードを削除して、画像を再アップロードしてください。
+              </p>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDeleteCard(); }}
+              style={{
+                padding: '6px 14px', fontSize: 12,
+                fontFamily: 'var(--font-mono)',
+                background: 'var(--color-text-danger)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 'var(--border-radius-md)',
+                cursor: 'pointer',
+              }}>
+              <i className="ti ti-trash" aria-hidden="true" style={{ marginRight: 4 }} />
+              このカードを削除
+            </button>
+          </div>
+        ) : imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={card.fileName}
+            onError={() => setImageError(true)}
+            style={{
+              maxWidth: '100%', maxHeight: '100%',
+              objectFit: 'contain', display: 'block',
+              userSelect: 'none', pointerEvents: 'none',
+            }}
+          />
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>読み込み中…</span>
+        )}
+      </div>
+
+      {/* メモ */}
+      <div style={{ marginBottom: 10 }}>
+        <span style={{
+          fontSize: 10, fontWeight: 500, letterSpacing: 2,
+          color: 'var(--color-text-tertiary)',
+          fontFamily: 'var(--font-mono)', textTransform: 'uppercase',
+          display: 'block', marginBottom: 4,
+        }}>Memo</span>
+        <textarea
+          value={memoValue}
+          onChange={(e) => onMemoChange(e.target.value)}
+          placeholder={imageError ? '破損カードのためメモは保存できません' : '手順を入力…'}
+          spellCheck={false}
+          disabled={imageError}
+          style={{
+            width: '100%', minHeight: 100, maxHeight: 200, resize: 'vertical',
+            padding: '8px 10px', fontSize: 13,
+            fontFamily: 'var(--font-mono)',
+            lineHeight: 1.6, letterSpacing: '0.05em',
+            background: 'var(--color-background-secondary)',
+            border: '0.5px solid var(--color-border-tertiary)',
+            borderRadius: 'var(--border-radius-md)',
+            color: imageError ? 'var(--color-text-tertiary)' : 'var(--color-text-primary)',
+            outline: 'none', boxSizing: 'border-box',
+            opacity: imageError ? 0.5 : 1,
+            cursor: imageError ? 'not-allowed' : 'text',
+          }}
+        />
+      </div>
+
+      {/* 操作バー */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 0',
+      }}>
+        <button
+          onClick={onPrev}
+          title="前へ (←)"
+          style={{
+            padding: '6px 12px', fontSize: 12,
+            fontFamily: 'var(--font-mono)',
+            background: 'var(--color-background-secondary)',
+            border: '0.5px solid var(--color-border-tertiary)',
+            borderRadius: 'var(--border-radius-md)',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+          }}>
+          <i className="ti ti-arrow-left" aria-hidden="true" />
+        </button>
+        <span style={{
+          fontSize: 12, color: 'var(--color-text-secondary)',
+          fontFamily: 'var(--font-mono)', letterSpacing: 1,
+        }}>
+          <span style={{ color: 'var(--color-text-primary)', fontWeight: 500 }}>{index + 1}</span>
+          {' / '}
+          <span>{total}</span>
+        </span>
+        <button
+          onClick={onNext}
+          title="次へ (Space / →)"
+          style={{
+            padding: '6px 12px', fontSize: 12,
+            fontFamily: 'var(--font-mono)',
+            background: 'var(--color-background-secondary)',
+            border: '0.5px solid var(--color-border-tertiary)',
+            borderRadius: 'var(--border-radius-md)',
+            color: 'var(--color-text-secondary)',
+            cursor: 'pointer',
+          }}>
+          <i className="ti ti-arrow-right" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══ UI: 空のメイン領域 ═════════════════════════════════════════════════
+function EmptyMain({ totalCards, currentFolderName }) {
+  return (
+    <div style={{
+      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexDirection: 'column', gap: 10, padding: 40,
+      color: 'var(--color-text-tertiary)',
+    }}>
+      <i className="ti ti-photo" aria-hidden="true" style={{ fontSize: 32 }} />
+      <p style={{ margin: 0, fontSize: 13, textAlign: 'center', lineHeight: 1.6 }}>
+        {totalCards === 0
+          ? <>カードがまだありません。<br/>左上のボタンからアップロードしてください</>
+          : currentFolderName
+            ? <>「{currentFolderName}」にカードがありません</>
+            : <>このビューにカードがありません</>}
+      </p>
+    </div>
+  );
+}
+
+// ═══ APP ═══════════════════════════════════════════════════════════════
+function App() {
+  const [ready, setReady] = useState(false);
+  const [folders, setFolders] = useState([]);
+  const [cards, setCards] = useState([]);
+  const [currentFolderId, setCurrentFolderId] = useState(() => lsGet(LS_FOLDER, null));
+  const [includeSubfolders, setIncludeSubfolders] = useState(() => lsGet(LS_SUBFOLDERS, true));
+  const [orderMode, setOrderMode] = useState(() => lsGet(LS_ORDER, 'shuffle'));
+  const [expanded, setExpanded] = useState(() => new Set(lsGet(LS_EXPANDED, [])));
+  const [queue, setQueue] = useState([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [memoDraft, setMemoDraft] = useState('');
+  const [imageUrl, setImageUrl] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null);
+  // v2: フォルダ作成・複製・移動
+  const [creatingFolder, setCreatingFolder] = useState(null); // { parentId } or null
+  const [newFolderName, setNewFolderName] = useState('');
+  const [movingFolderId, setMovingFolderId] = useState(null);
+
+  const folderInputRef = useRef(null);
+  const filesInputRef = useRef(null);
+  const backupInputRef = useRef(null);
+  const memoSaveTimerRef = useRef(null);
+  // v6: ユーザーが実際にtextareaを編集したときだけ {cardId, memo} を記録。
+  // memoDraft state の同期ラグに依存しないため、純粋なナビゲーションでは絶対に保存処理が走らない。
+  const pendingEditRef = useRef(null);
+  const cardsRef = useRef(cards);
+  useEffect(() => { cardsRef.current = cards; }, [cards]);
+
+  // 起動時にデータ読み込み
+  useEffect(() => {
+    (async () => {
+      const [f, c] = await Promise.all([dbAll('folders'), dbAll('cards')]);
+      setFolders(f);
+      setCards(c);
+      setReady(true);
+    })();
+  }, []);
+
+  // フォルダ用 input に webkitdirectory を付与
+  useEffect(() => {
+    if (folderInputRef.current) {
+      folderInputRef.current.setAttribute('webkitdirectory', '');
+      folderInputRef.current.setAttribute('directory', '');
+    }
+  }, [ready]);
+
+  // 設定保存
+  useEffect(() => { lsSet(LS_FOLDER, currentFolderId); }, [currentFolderId]);
+  useEffect(() => { lsSet(LS_SUBFOLDERS, includeSubfolders); }, [includeSubfolders]);
+  useEffect(() => { lsSet(LS_ORDER, orderMode); }, [orderMode]);
+  useEffect(() => { lsSet(LS_EXPANDED, [...expanded]); }, [expanded]);
+
+  // 可視カードリスト
+  const visibleCards = useMemo(
+    () => getVisibleCards(cards, folders, currentFolderId, includeSubfolders),
+    [cards, folders, currentFolderId, includeSubfolders]
+  );
+
+  // キュー構築（フォルダ・順序・カード数変化時に再構築）
+  useEffect(() => {
+    if (visibleCards.length === 0) {
+      setQueue([]);
+      setQueueIndex(0);
+      return;
+    }
+    const ids = visibleCards.map(c => c.id);
+    const newQueue = orderMode === 'shuffle' ? shuffleArray(ids) : ids;
+    setQueue(newQueue);
+    setQueueIndex(0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFolderId, includeSubfolders, orderMode, visibleCards.length]);
+
+  // カードが見つからなくなったら（削除等）キューインデックスを安全に
+  useEffect(() => {
+    if (queueIndex >= queue.length && queue.length > 0) {
+      setQueueIndex(0);
+    }
+  }, [queue, queueIndex]);
+
+  // 現在のカード
+  const currentCard = useMemo(() => {
+    if (queue.length === 0) return null;
+    const id = queue[queueIndex];
+    return cards.find(c => c.id === id) || null;
+  }, [queue, queueIndex, cards]);
+
+  // 画像 URL（カード切替時に生成・解放）
+  useEffect(() => {
+    if (!currentCard) {
+      setImageUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(currentCard.blob);
+    setImageUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [currentCard?.id]);
+
+  // メモ草稿の同期
+  useEffect(() => {
+    setMemoDraft(currentCard?.memo ?? '');
+  }, [currentCard?.id]);
+
+  // v6: textarea入力ハンドラ。
+  //     ユーザーが実際に編集したときだけ pendingEditRef に {cardId, memo} を記録し、
+  //     500msのデバウンス保存もこの ref を見て行う。
+  //     memoDraft state の同期ラグに左右されないため、純粋なナビゲーション中に
+  //     誤った memoDraft で保存処理が走ることがない。
+  const handleMemoChange = useCallback((newValue) => {
+    if (!currentCard) return;
+    setMemoDraft(newValue);
+    pendingEditRef.current = { cardId: currentCard.id, memo: newValue };
+
+    if (memoSaveTimerRef.current) clearTimeout(memoSaveTimerRef.current);
+    memoSaveTimerRef.current = setTimeout(async () => {
+      memoSaveTimerRef.current = null;
+      const pending = pendingEditRef.current;
+      if (!pending) return;
+      const targetId = pending.cardId;
+      const targetMemo = pending.memo;
+      const cardToSave = cardsRef.current.find(c => c.id === targetId);
+      if (!cardToSave) return;
+      if (cardToSave.memo === targetMemo) return;
+      console.log('[DEBUG-T] debounce save → card', targetId, '← memo', JSON.stringify(targetMemo));
+      try {
+        const updated = { ...cardToSave, memo: targetMemo };
+        await dbPut('cards', updated);
+        setCards(prev => prev.map(c => c.id === targetId ? updated : c));
+        // 保存完了時点で pendingEditRef がまだ同じ内容なら null に戻す。
+        // それ以降にユーザーが入力していたら別の {cardId, memo} になっているはずなので触らない。
+        if (pendingEditRef.current
+            && pendingEditRef.current.cardId === targetId
+            && pendingEditRef.current.memo === targetMemo) {
+          pendingEditRef.current = null;
+        }
+      } catch (err) {
+        // v4: 壊れた blob を含むレコードの保存失敗を握りつぶす。
+        console.warn('Failed to save memo (card may be broken):', err);
+      }
+    }, 500);
+  }, [currentCard]);
+
+  // カード切替時にペンディング中の編集を即保存
+  const lastCardIdRef = useRef(null);
+  useEffect(() => {
+    const prevId = lastCardIdRef.current;
+    if (prevId != null && prevId !== currentCard?.id) {
+      const pending = pendingEditRef.current;
+      // pendingEditRef が prevCard 向けの編集を保持しているときだけ保存。
+      // ユーザーがtextareaを触っていなければ pending === null なので何もしない。
+      if (pending && pending.cardId === prevId) {
+        if (memoSaveTimerRef.current) {
+          clearTimeout(memoSaveTimerRef.current);
+          memoSaveTimerRef.current = null;
+        }
+        const cardToSave = cardsRef.current.find(c => c.id === prevId);
+        if (cardToSave && cardToSave.memo !== pending.memo) {
+          console.log('[DEBUG-4] immediate save → card', prevId, '← memo', JSON.stringify(pending.memo), '(now on card', currentCard?.id + ')');
+          const updated = { ...cardToSave, memo: pending.memo };
+          dbPut('cards', updated)
+            .then(() => {
+              setCards(prev => prev.map(c => c.id === prevId ? updated : c));
+            })
+            .catch(err => {
+              console.warn('Failed to save memo on card change:', err);
+            });
+        }
+        pendingEditRef.current = null;
+      }
+    }
+    lastCardIdRef.current = currentCard?.id ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCard?.id]);
+
+  // ナビゲーション
+  const handleNext = useCallback(() => {
+    if (queue.length === 0) return;
+    setQueueIndex(prev => {
+      const next = prev + 1;
+      if (next >= queue.length) {
+        // 終端: シャッフルなら再シャッフル、順番ならループ
+        if (orderMode === 'shuffle' && queue.length > 1) {
+          setQueue(shuffleArray(queue));
+        }
+        return 0;
+      }
+      return next;
+    });
+  }, [queue, orderMode]);
+
+  const handlePrev = useCallback(() => {
+    if (queue.length === 0) return;
+    setQueueIndex(prev => (prev - 1 + queue.length) % queue.length);
+  }, [queue.length]);
+
+  const toggleOrder = useCallback(() => {
+    setOrderMode(prev => prev === 'shuffle' ? 'sequence' : 'shuffle');
+  }, []);
+
+  // キーボード
+  useKeyboard({
+    ' ': handleNext,
+    'ArrowRight': handleNext,
+    'ArrowLeft': handlePrev,
+    'r': toggleOrder,
+    'R': toggleOrder,
+    'Escape': () => {
+      if (movingFolderId != null) setMovingFolderId(null);
+    },
+  });
+
+  // フォルダ操作
+  const toggleExpand = useCallback((id) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // v2: 新規フォルダ作成
+  const handleStartCreateFolder = useCallback(() => {
+    setCreatingFolder({ parentId: currentFolderId });
+    setNewFolderName('');
+  }, [currentFolderId]);
+
+  const handleConfirmCreateFolder = useCallback(async () => {
+    if (!creatingFolder) return;
+    const name = newFolderName.trim();
+    if (!name) {
+      setCreatingFolder(null);
+      setNewFolderName('');
+      return;
+    }
+    const parentId = creatingFolder.parentId;
+    const newId = await dbAdd('folders', { name, parentId });
+    setFolders(prev => [...prev, { id: newId, name, parentId }]);
+    setCreatingFolder(null);
+    setNewFolderName('');
+    // 親フォルダを展開して新フォルダを表示
+    if (parentId != null) {
+      setExpanded(prev => new Set(prev).add(parentId));
+    }
+  }, [creatingFolder, newFolderName]);
+
+  const handleCancelCreateFolder = useCallback(() => {
+    setCreatingFolder(null);
+    setNewFolderName('');
+  }, []);
+
+  // v2: フォルダ複製（構造 + カード独立コピー）
+  // 画像blobは元と共有（Blobは不変なのでGCに任せて問題なし）、
+  // メモは独立コピー（編集すれば別々に変化）
+  const handleDuplicateFolder = useCallback(async (folderId) => {
+    const sourceFolder = folders.find(f => f.id === folderId);
+    if (!sourceFolder) return;
+
+    // BFSで再帰的にフォルダ構造を複製し、各フォルダのカードもコピー
+    const queue = [{ oldId: folderId, newParentId: sourceFolder.parentId, isRoot: true }];
+
+    while (queue.length > 0) {
+      const { oldId, newParentId, isRoot } = queue.shift();
+      const old = folders.find(f => f.id === oldId);
+      if (!old) continue;
+      const newName = isRoot ? `${old.name} (コピー)` : old.name;
+      const newId = await dbAdd('folders', { name: newName, parentId: newParentId });
+
+      // 元フォルダのカードを複製先にコピー（blob参照を共有、その他は独立）
+      const cardsInFolder = cards.filter(c => c.folderId === oldId);
+      for (const card of cardsInFolder) {
+        try {
+          await dbAdd('cards', {
+            folderId: newId,
+            fileName: card.fileName,
+            blob: card.blob,
+            memo: card.memo,
+            createdAt: Date.now(),
+          });
+        } catch (err) {
+          // v4: 壊れた blob を持つカードはスキップ（v3 以前のデータ対策）
+          console.warn(`Failed to duplicate card ${card.id} (${card.fileName}):`, err);
+        }
+      }
+
+      const children = folders.filter(f => f.parentId === oldId);
+      for (const child of children) {
+        queue.push({ oldId: child.id, newParentId: newId, isRoot: false });
+      }
+    }
+
+    const [f, c] = await Promise.all([dbAll('folders'), dbAll('cards')]);
+    setFolders(f);
+    setCards(c);
+  }, [folders, cards]);
+
+  // v2: フォルダ移動
+  const handleStartMoveFolder = useCallback((folderId) => {
+    setMovingFolderId(folderId);
+  }, []);
+
+  const handleCancelMoveFolder = useCallback(() => {
+    setMovingFolderId(null);
+  }, []);
+
+  // v2: フォルダ選択ハンドラ（移動モード中は移動先決定として動作）
+  const handleSelectFolder = useCallback(async (folderId) => {
+    if (movingFolderId != null) {
+      // 移動モード: クリックされたフォルダを移動先として扱う
+      const descendantIds = getDescendantFolderIds(folders, movingFolderId);
+      if (folderId != null && descendantIds.has(folderId)) {
+        // 自身または子孫 - 不正な移動先なので無視
+        return;
+      }
+      const movingFolder = folders.find(f => f.id === movingFolderId);
+      if (!movingFolder) { setMovingFolderId(null); return; }
+      if (movingFolder.parentId === folderId) {
+        // 同じ親 - 変化なしなのでキャンセル
+        setMovingFolderId(null);
+        return;
+      }
+      const updated = { ...movingFolder, parentId: folderId };
+      await dbPut('folders', updated);
+      setFolders(prev => prev.map(f => f.id === movingFolderId ? updated : f));
+      setMovingFolderId(null);
+      // 移動先を展開して結果を見えるようにする
+      if (folderId != null) {
+        setExpanded(prev => new Set(prev).add(folderId));
+      }
+    } else {
+      setCurrentFolderId(folderId);
+    }
+  }, [movingFolderId, folders]);
+
+  const handleDeleteFolder = useCallback(async (folderId) => {
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) return;
+    const ids = getDescendantFolderIds(folders, folderId);
+    const affectedCards = cards.filter(c => ids.has(c.folderId));
+    const msg = `「${folder.name}」を削除します。\n` +
+                `サブフォルダ ${ids.size - 1} 個、カード ${affectedCards.length} 枚も削除されます。\n\nよろしいですか？`;
+    if (!window.confirm(msg)) return;
+    for (const c of affectedCards) await dbDelete('cards', c.id);
+    for (const id of ids) await dbDelete('folders', id);
+    const [f, c] = await Promise.all([dbAll('folders'), dbAll('cards')]);
+    setFolders(f);
+    setCards(c);
+    if (currentFolderId != null && ids.has(currentFolderId)) {
+      setCurrentFolderId(null);
+    }
+  }, [folders, cards, currentFolderId]);
+
+  const handleDeleteCard = useCallback(async () => {
+    if (!currentCard) return;
+    if (!window.confirm(`「${currentCard.fileName}」を削除しますか？`)) return;
+    await dbDelete('cards', currentCard.id);
+    setCards(prev => prev.filter(c => c.id !== currentCard.id));
+  }, [currentCard]);
+
+  // アップロード処理
+  const processUpload = useCallback(async (fileList) => {
+    if (!fileList || fileList.length === 0) return;
+    setUploading(true);
+    setUploadStatus({ message: `アップロード中… (${fileList.length} 件)`, type: 'info' });
+    try {
+      const result = await uploadFiles(fileList, currentFolderId, folders);
+      const [f, c] = await Promise.all([dbAll('folders'), dbAll('cards')]);
+      setFolders(f);
+      setCards(c);
+      const parts = [`${result.added} 件追加`];
+      if (result.skipped > 0) parts.push(`${result.skipped} 件スキップ`);
+      setUploadStatus({
+        message: parts.join(' · '),
+        type: 'ok',
+      });
+      setTimeout(() => setUploadStatus(null), 4000);
+    } catch (err) {
+      console.error(err);
+      setUploadStatus({ message: `エラー: ${err.message}`, type: 'error' });
+    } finally {
+      setUploading(false);
+    }
+  }, [currentFolderId, folders]);
+
+const handleFolderUpload = useCallback((e) => {
+  const files = Array.from(e.target.files);  // ← 追加：参照ではなく独立した配列に
+  e.target.value = '';                       // ← 先にクリア
+  processUpload(files);                      // ← コピーを渡す
+}, [processUpload]);
+
+const handleFilesUpload = useCallback((e) => {
+  const files = Array.from(e.target.files);
+  e.target.value = '';
+  processUpload(files);
+}, [processUpload]);
+
+  // v3: バックアップ書き出し
+  const handleExportBackup = useCallback(async () => {
+    setUploadStatus({ message: 'バックアップを作成しています…', type: 'info' });
+    try {
+      const result = await exportBackup();
+      setUploadStatus({
+        message: `バックアップを書き出しました: ${result.fileName} (フォルダ ${result.folderCount} 個 / カード ${result.cardCount} 枚)`,
+        type: 'ok',
+      });
+      setTimeout(() => setUploadStatus(null), 5000);
+    } catch (err) {
+      console.error(err);
+      setUploadStatus({ message: `バックアップエラー: ${err.message}`, type: 'error' });
+    }
+  }, []);
+
+  // v3: バックアップ復元（完全置換）
+  const handleImportBackup = useCallback(async (file) => {
+    if (!file) return;
+    const ok = window.confirm(
+      'バックアップを復元すると、現在の全データ（フォルダ・カード・メモ）が削除され、\n' +
+      'バックアップ内容で完全に置き換えられます。\n\n' +
+      'この操作は取り消せません。続行しますか？'
+    );
+    if (!ok) return;
+
+    setUploading(true);
+    setUploadStatus({ message: '復元中…', type: 'info' });
+    try {
+      const result = await importBackupReplace(file);
+      const [f, c] = await Promise.all([dbAll('folders'), dbAll('cards')]);
+      setFolders(f);
+      setCards(c);
+      setCurrentFolderId(null);
+      setExpanded(new Set());
+      const parts = [`フォルダ ${result.folderCount} 個`, `カード ${result.cardCount} 枚を復元`];
+      if (result.missingImages > 0) parts.push(`画像欠損 ${result.missingImages} 件`);
+      setUploadStatus({ message: parts.join(' · '), type: result.missingImages > 0 ? 'info' : 'ok' });
+      setTimeout(() => setUploadStatus(null), 6000);
+    } catch (err) {
+      console.error(err);
+      setUploadStatus({ message: `復元エラー: ${err.message}`, type: 'error' });
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  const handleBackupFileChange = useCallback((e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) handleImportBackup(file);
+  }, [handleImportBackup]);
+
+  // 派生データ
+  const tree = useMemo(() => buildFolderTree(folders), [folders]);
+  const folderPath = useMemo(
+    () => getFolderPath(folders, currentFolderId),
+    [folders, currentFolderId]
+  );
+  const currentFolderName = currentFolderId != null
+    ? folders.find(f => f.id === currentFolderId)?.name
+    : null;
+
+  if (!ready) {
+    return (
+      <div style={{ padding: '2rem', textAlign: 'center' }}>
+        <p style={{ color: 'var(--color-text-secondary)', fontFamily: 'var(--font-mono)', fontSize: 14, margin: '0 0 6px' }}>
+          Loading flashcard data…
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: '100vh', overflow: 'hidden',
+    }}>
+      {/* ヘッダー */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '10px 16px',
+        borderBottom: '0.5px solid var(--color-border-tertiary)',
+        flexShrink: 0,
+      }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Flashcard</h2>
+        <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-mono)' }}>
+          Space/→ 次へ · ← 前へ · R 順序切替
+        </span>
+        <div style={{ flex: 1 }} />
+        <Segment
+          options={[
+            { value: 'sequence', label: '順番', icon: 'arrows-sort' },
+            { value: 'shuffle', label: 'ランダム', icon: 'arrows-shuffle' },
+          ]}
+          value={orderMode}
+          onChange={setOrderMode}
+        />
+        <Segment
+          options={[
+            { value: false, label: 'このフォルダのみ' },
+            { value: true, label: 'サブフォルダ含む' },
+          ]}
+          value={includeSubfolders}
+          onChange={setIncludeSubfolders}
+        />
+      </div>
+
+      {/* アップロード状況バー */}
+      {uploadStatus && (
+        <div style={{
+          padding: '6px 16px', fontSize: 12,
+          fontFamily: 'var(--font-mono)',
+          background:
+            uploadStatus.type === 'error' ? 'var(--color-background-danger)' :
+            'var(--color-background-secondary)',
+          color:
+            uploadStatus.type === 'error' ? 'var(--color-text-danger)' :
+            'var(--color-text-secondary)',
+          borderBottom: '0.5px solid var(--color-border-tertiary)',
+          flexShrink: 0,
+        }}>
+          {uploadStatus.message}
+        </div>
+      )}
+
+      {/* メイン */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <Sidebar
+          folders={folders} cards={cards} tree={tree}
+          currentFolderId={currentFolderId}
+          includeSubfolders={includeSubfolders}
+          expanded={expanded}
+          onSelectFolder={handleSelectFolder}
+          onToggleExpand={toggleExpand}
+          onDeleteFolder={handleDeleteFolder}
+          onDuplicateFolder={handleDuplicateFolder}
+          onStartMoveFolder={handleStartMoveFolder}
+          onUploadFolder={() => folderInputRef.current?.click()}
+          onUploadFiles={() => filesInputRef.current?.click()}
+          uploading={uploading}
+          creatingFolder={creatingFolder}
+          newFolderName={newFolderName}
+          onNewFolderNameChange={setNewFolderName}
+          onStartCreateFolder={handleStartCreateFolder}
+          onConfirmCreateFolder={handleConfirmCreateFolder}
+          onCancelCreateFolder={handleCancelCreateFolder}
+          movingFolderId={movingFolderId}
+          onCancelMoveFolder={handleCancelMoveFolder}
+          onExportBackup={handleExportBackup}
+          onImportBackup={() => backupInputRef.current?.click()}
+        />
+
+        {currentCard ? (
+          <CardView
+            card={currentCard}
+            index={queueIndex}
+            total={queue.length}
+            imageUrl={imageUrl}
+            memoValue={memoDraft}
+            onMemoChange={handleMemoChange}
+            onNext={handleNext}
+            onPrev={handlePrev}
+            onDeleteCard={handleDeleteCard}
+            folderPath={folderPath}
+          />
+        ) : (
+          <EmptyMain totalCards={cards.length} currentFolderName={currentFolderName} />
+        )}
+      </div>
+
+      {/* 隠し input */}
+      <input
+        ref={folderInputRef} type="file" multiple
+        onChange={handleFolderUpload}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={filesInputRef} type="file" multiple
+        accept="image/*"
+        onChange={handleFilesUpload}
+        style={{ display: 'none' }}
+      />
+      <input
+        ref={backupInputRef} type="file"
+        accept=".zip,application/zip"
+        onChange={handleBackupFileChange}
+        style={{ display: 'none' }}
+      />
+    </div>
+  );
+}
+
+// ═══ MOUNT ═══════════════════════════════════════════════════════════════
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+</body>
+</html>
