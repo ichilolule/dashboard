@@ -1661,7 +1661,7 @@ function getCaseStepSlots(c){
 
 // スケジュールマップ構築：日付→{morning, night, wait}
 // 各枠 {idx, kind, caseName, fallback:bool}
-// 工程の制約：各工程は前工程完了の翌日以降。同じ案件は1日1枠まで。
+// 工程の制約：各工程は前工程完了の翌日以降。同じ工程の複数枠は同日配置可。
 // 優先順位：締切までの余裕が少ない案件を優先。朝〜昼は大ラフを最優先し、その他工程は昼夜どちらでも配置。
 function buildScheduleMap(){
   const cfg=getCfg();
@@ -1719,8 +1719,8 @@ function buildScheduleMap(){
     return paidCmp||a.i-b.i;
   }
 
-  function eligibleStates(dateStr,usedCaseIdx){
-    return states.filter(state=>state.stageIdx<state.stages.length&&state.availableFrom<=dateStr&&state.c.deadline>=dateStr&&!usedCaseIdx.has(state.i));
+  function eligibleStates(dateStr){
+    return states.filter(state=>state.stageIdx<state.stages.length&&state.availableFrom<=dateStr&&state.c.deadline>=dateStr);
   }
 
   function assign(state,dateStr,slotName,isFallback){
@@ -1739,20 +1739,17 @@ function buildScheduleMap(){
   while(maxDeadline&&date<=maxDeadline&&safety<3660){
     safety++;
     if(!isHoliday(date,cfg)){
-      const usedCaseIdx=new Set();
-
       // 朝〜昼：大ラフを必ず優先し、なければその他工程を配置
-      let eligible=eligibleStates(date,usedCaseIdx);
+      let eligible=eligibleStates(date);
       let rough=eligible.filter(state=>state.stages[state.stageIdx].kind==='rough').sort((a,b)=>urgencyCompare(a,b,date));
       let flexible=eligible.filter(state=>state.stages[state.stageIdx].kind!=='rough').sort((a,b)=>urgencyCompare(a,b,date));
       const morningState=rough[0]||flexible[0];
       if(morningState){
         assign(morningState,date,'morning',false);
-        usedCaseIdx.add(morningState.i);
       }
 
       // 夜：その他工程を優先。大ラフしか残っていない場合だけ夜へフォールバック
-      eligible=eligibleStates(date,usedCaseIdx);
+      eligible=eligibleStates(date);
       flexible=eligible.filter(state=>state.stages[state.stageIdx].kind!=='rough').sort((a,b)=>urgencyCompare(a,b,date));
       rough=eligible.filter(state=>state.stages[state.stageIdx].kind==='rough').sort((a,b)=>urgencyCompare(a,b,date));
       const nightState=flexible[0]||rough[0];
