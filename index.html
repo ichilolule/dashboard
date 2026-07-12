@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="案件管理">
 <meta name="theme-color" content="#714944">
 
-<title>案件管理 v26</title>
+<title>案件管理 v48</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -289,7 +289,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 <body>
 <h2 class="sr-only">案件管理ダッシュボード</h2>
 <div class="top-bar">
-  <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理 <span style="font-size:11px;opacity:.7">v30</span></span>
+  <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理</span>
   <div style="display:flex;align-items:center;gap:8px">
     <button class="sync-btn" onclick="exportBackup()" title="dashboard_sync.json を書き出す"><i class="ti ti-upload"></i> 同期</button>
     <button class="sync-btn" onclick="importBackup()" title="dashboard_sync.json を読み込む"><i class="ti ti-download"></i> 読み込み</button>
@@ -1959,7 +1959,7 @@ function exportBackup(){
     if(k&&k.startsWith('invseq_'))invseq[k]=localStorage.getItem(k);
   }
   const data={
-    exported:new Date().toISOString(),version:'v30',
+    exported:new Date().toISOString(),
     cases,archive,
     settings:getCfg(),profile:getProfile(),invseq,
     spotHolidays:getSpotHolidays()
