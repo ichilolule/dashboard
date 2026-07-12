@@ -63,7 +63,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .case-card.remind-active{border-color:var(--am-bd)}
 .case-card.highlight{border-color:var(--ac);background:var(--bg2)}
 .badge{font-size:12px;padding:2px 8px;border-radius:20px;white-space:nowrap;font-weight:500}
-.b-new{background:var(--ac-bg);color:var(--tx)}.b-prog{background:var(--gr-bg);color:var(--gr)}.b-wait{background:var(--am-bg);color:var(--am)}.b-done{background:var(--gr-bg);color:var(--gr)}
+.b-prog{background:var(--gr-bg);color:var(--gr)}.b-wait{background:var(--am-bg);color:var(--am)}.b-done{background:var(--gr-bg);color:var(--gr)}
 .b-paid{background:var(--gr-bg);color:var(--gr);font-size:11px}.b-unpaid{background:var(--rd-bg);color:var(--rd);font-size:11px}
 .b-postpaid{background:var(--am-bg);color:var(--am);font-size:11px}
 .b-remind{background:var(--am-bg);color:var(--am);font-size:11px}.b-overdue{background:var(--rd-bg);color:var(--rd);font-size:11px}
@@ -139,13 +139,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .qb-paid-btn:hover{filter:brightness(.96)}
 .qb-arc{font-size:12px;padding:2px 7px;border-radius:20px;border:.5px solid var(--bd);background:none;color:var(--tx3);cursor:pointer;line-height:1.5}
 .qb-arc:hover{background:var(--bg3)}
+.qb-row-bottom{align-items:flex-end}
+.qb-card-actions{margin-left:auto;display:flex;gap:3px;align-items:center;justify-content:flex-end;flex-wrap:nowrap}
+.qb-rev-group{display:flex;gap:3px;align-items:center;white-space:nowrap}
 .qb-mail{font-size:11px;padding:2px 7px;border-radius:20px;border:.5px solid var(--bd);background:none;color:var(--tx3);cursor:pointer;white-space:nowrap;line-height:1.5}
 .qb-mail:hover{background:var(--ac-bg);color:var(--tx);border-color:var(--ac)}
-.qb-mail.hl{background:var(--ac-bg);color:var(--tx);border-color:var(--ac);font-weight:500}
 .qb-remind{font-size:11px;padding:2px 7px;border-radius:20px;border:.5px solid var(--am-bd);background:var(--am-bg);color:var(--am);cursor:pointer;white-space:nowrap;line-height:1.5}
 .qb-remind:hover{filter:brightness(.96)}
 .qb-decline{font-size:11px;padding:2px 7px;border-radius:20px;border:.5px solid var(--rd-bd);background:none;color:var(--rd);cursor:pointer;white-space:nowrap;line-height:1.5}
 .qb-decline:hover{background:var(--rd-bg)}
+.detail-actions{border-top:.5px solid var(--bd);margin-top:.85rem;padding-top:.85rem;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.detail-actions-buttons{display:flex;gap:4px;flex-wrap:wrap}
+.detail-company-toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2);cursor:pointer;white-space:nowrap}
 /* calendar multi-month */
 .cal-month-hdr{font-size:14px;font-weight:500;color:var(--tx);margin:1.1rem 0 .4rem;padding-bottom:.25rem;border-bottom:.5px solid var(--bd)}
 .cal-month-hdr:first-child{margin-top:0}
@@ -268,8 +273,6 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 /* backup / import buttons */
 .backup-btn{font-size:13px;padding:6px 14px;border-radius:var(--rs);border:.5px solid var(--bd);background:var(--bg2);color:var(--tx2);cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-right:6px;margin-top:.5rem}
 .backup-btn:hover{background:var(--bg3)}
-.import-btn{font-size:13px;padding:6px 14px;border-radius:var(--rs);border:.5px solid var(--ac);background:var(--ac-bg);color:var(--tx);cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-right:6px;margin-top:.5rem}
-.import-btn:hover{filter:brightness(.97)}
 /* PDF invoice */
 #pdf-invoice{display:none}
 @media print{
@@ -408,13 +411,6 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
       <div class="settings-row" style="align-items:flex-start"><label style="padding-top:6px">定休日（毎週固定）</label><div id="cfg-holidays" style="display:flex;gap:5px;flex-wrap:wrap;padding-top:3px"></div></div>
       <div class="settings-row"><label>返信待ち期間</label><input type="number" id="cfg-waitDays" onchange="saveCfg()" min="1" max="30"><span class="unit">日（カレンダーに表示）</span></div>
     </div>
-    <div class="settings-section">
-      <h3><i class="ti ti-database-export" style="vertical-align:-2px;margin-right:5px"></i>データ管理</h3>
-      <div style="font-size:13px;color:var(--tx2);margin-bottom:.75rem">書き出し・読み込みは画面上部の「↑ 同期」「↓ 読み込み」ボタンからいつでも行えます。</div>
-      <div style="font-size:12px;color:var(--tx3);margin-bottom:.4rem">バックアップから完全復元（上書き）</div>
-      <button class="import-btn" onclick="importBackup()"><i class="ti ti-file-upload"></i> JSON からインポート</button>
-      <div style="font-size:11px;color:var(--tx3);margin-top:.4rem">⚠️ インポートすると現在のデータは上書きされます</div>
-    </div>
     <button class="reset-btn" onclick="resetCfg()"><i class="ti ti-refresh"></i> 設定をデフォルトに戻す</button>
   </div>
 </div>
@@ -540,24 +536,29 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
       <div class="fr"><label>受付日</label><input id="m-received" type="date"></div>
       <div class="fr"><label id="paydue-label">支払い期限（14日前）</label><input id="m-paydue" type="date"></div>
     </div>
-    <div class="fr" style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:.5px solid var(--bd);margin-bottom:.65rem">
-      <label style="flex:1;font-size:14px;color:var(--tx);margin-bottom:0">企業依頼<span style="font-size:11px;color:var(--tx3);margin-left:6px">敬称が「様」→「御中」になります</span></label>
-      <label class="tgl" style="flex-shrink:0"><input type="checkbox" id="m-is-company"><span class="sw"></span></label>
+    <div class="fr-row">
+      <div class="fr"><label>状態</label><select id="m-status"><option value="progress">進行中</option><option value="wait">確認待ち</option><option value="done">完了</option></select></div>
+      <div class="fr"><label>工程</label><select id="m-step" onchange="refreshModalMailActionsFromForm()"><option value="1">大ラフ</option><option value="2">清書前ラフ</option><option value="3">清書</option><option value="4">レタッチ</option><option value="5">納品済み</option></select></div>
     </div>
     <div class="fr-row">
-      <div class="fr"><label>ステータス</label><select id="m-status"><option value="new">新規</option><option value="progress">進行中</option><option value="wait">確認待ち</option><option value="done">完了</option></select></div>
-      <div class="fr"><label>入金状況</label><select id="m-paid" onchange="updatePaidStatusUI(true)"><option value="未入金">未入金</option><option value="後払い">後払い</option><option value="入金済み">入金済み</option></select></div>
-    </div>
-    <div class="fr"><label>工程</label><select id="m-step"><option value="0">着手前</option><option value="1">大ラフ</option><option value="2">清書前ラフ</option><option value="3">清書</option><option value="4">レタッチ</option><option value="5">納品済み</option></select></div>
-    <div class="fr">
-      <label>修正回数</label>
-      <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-        <input id="m-revision" type="number" min="0" step="1" value="0" style="width:88px;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:3px 6px;background:var(--bg2)">
-        <span style="font-size:13px;color:var(--tx2)">回</span>
+      <div class="fr"><label>入金状況</label><select id="m-paid" onchange="updatePaidStatusUI(true);refreshModalMailActionsFromForm()"><option value="未入金">未入金</option><option value="後払い">後払い</option><option value="入金済み">入金済み</option></select></div>
+      <div class="fr">
+        <label>修正回数</label>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+          <input id="m-revision" type="number" min="0" step="1" value="0" style="width:88px;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:3px 6px;background:var(--bg2)">
+          <span style="font-size:13px;color:var(--tx2)">回</span>
+        </div>
       </div>
     </div>
     <div class="fr"><label>依頼詳細・キャラクター情報</label><textarea id="m-detail" class="auto-grow" placeholder="キャラクター詳細、ポーズ、雰囲気など（参考資料URLもこちらに記入）" style="min-height:80px" oninput="autoGrowTextarea(this)"></textarea></div>
     <div class="fr"><label>メモ・特記事項</label><textarea id="m-memo" class="auto-grow" placeholder="依頼者の要望、注意事項など" oninput="autoGrowTextarea(this)"></textarea></div>
+    <div class="detail-actions" id="detail-mail-actions">
+      <div class="detail-actions-buttons" id="detail-mail-buttons"></div>
+      <label class="detail-company-toggle" title="敬称が「様」から「御中」になります">
+        <span>企業依頼</span>
+        <span class="tgl"><input type="checkbox" id="m-is-company"><span class="sw"></span></span>
+      </label>
+    </div>
   </div>
 
   <div class="mbtns">
@@ -720,26 +721,29 @@ function updateSettingsLabels(){
 }
 function getDRAW(){const c=getCfg();return[{l:'SDキャラクター（2〜3頭身）',p:c.priceSD},{l:'顔のみ',p:c.priceFace},{l:'バストアップ',p:c.priceBust},{l:'全身（5〜7頭身）',p:c.priceFull}];}
 const DRAW_CHIP=['SDキャラクター','顔のみ','バストアップ','全身'];
-const STEPS=['着手前','大ラフ','清書前ラフ','清書','レタッチ','納品済み'];
-const S_LBL={new:'新規',progress:'進行中',wait:'確認待ち',done:'完了'};
-const S_CLS={new:'b-new',progress:'b-prog',wait:'b-wait',done:'b-done'};
+const STEP_OPTIONS=[['1','大ラフ'],['2','清書前ラフ'],['3','清書'],['4','レタッチ'],['5','納品済み']];
+const S_LBL={progress:'進行中',wait:'確認待ち',done:'完了'};
+const S_CLS={progress:'b-prog',wait:'b-wait',done:'b-done'};
 
 // ===== DATA =====
 let cases=[],archive=[];
 try{cases=JSON.parse(localStorage.getItem('cases')||'[]');}catch(e){}
 try{archive=JSON.parse(localStorage.getItem('archive')||'[]');}catch(e){}
-// v25以前の無料・有償カウントを、単一の修正回数へ統合
-function normalizeRevision(c){
+// 古い保存データを現在のステータス・工程へ寄せる
+function normalizeCase(c){
   if(!c||typeof c!=='object')return c;
   const legacy=(parseInt(c.revFree)||0)+(parseInt(c.revPaid)||0);
   const unified=c.revisionCount!==undefined?(parseInt(c.revisionCount)||0):legacy;
   c.revisionCount=String(Math.max(0,unified));
   delete c.revFree;
   delete c.revPaid;
+  if(!['progress','wait','done'].includes(c.status))c.status='wait';
+  c.step=String(c.step||'1');
+  if(!['1','2','3','4','5'].includes(c.step))c.step='1';
   return c;
 }
-cases=cases.map(normalizeRevision);
-archive=archive.map(normalizeRevision);
+cases=cases.map(normalizeCase);
+archive=archive.map(normalizeCase);
 let editIdx=null,editIsArchive=false,doneIdx=null,emailCaseIdx=null,emailType=null,emailLang='ja',declineVariant='soft',sortMode='deadline';
 let calYear,calMonth;
 const BUSINESS_DAY_START_HOUR=5;
@@ -872,17 +876,15 @@ function sortedCases(){
     const unpaid=cases.filter(c=>c.paid!=='入金済み'&&c.paid!=='後払い');
     return pinDeliveredPostpaid([...byDeadline(workApproved),...byDeadline(unpaid)]);
   }
-  if(sortMode==='status'){const o={progress:0,wait:1,new:2,done:3};return pinDeliveredPostpaid([...cases].sort((a,b)=>(o[a.status]||9)-(o[b.status]||9)));}
+  if(sortMode==='status'){const o={progress:0,wait:1,done:2};return pinDeliveredPostpaid([...cases].sort((a,b)=>(o[a.status]||9)-(o[b.status]||9)));}
   return pinDeliveredPostpaid([...cases].sort((a,b)=>{if(!a.received)return 1;if(!b.received)return -1;return new Date(b.received+'T12:00:00')-new Date(a.received+'T12:00:00');}));
 }
 
-// ===== STEP MAIL MAP =====
-// 0=着手前, 1=大ラフ, 2=清書前ラフ, 3=清書, 4=レタッチ, 5=納品済み
-const STEP_MAIL_MAP={0:['estimate','invoice'],1:['roughDraft'],2:['lineArt'],3:[],4:['delivery'],5:['delivery']};
+// ===== MAIL ACTIONS =====
 const MAIL_LBL={estimate:'見積もりメール',invoice:'請求書メール',roughDraft:'大ラフ確認',lineArt:'清書前確認',delivery:'納品メール',decline:'お断りメール'};
 const MAIL_LBL_EN={estimate:'Quotation',invoice:'Invoice',roughDraft:'Rough Draft',lineArt:'Line Art Draft',delivery:'Delivery',decline:'Decline'};
 const ALL_MAIL_TYPES=['estimate','invoice','roughDraft','lineArt','delivery'];
-const STATUSES=[['new','新規'],['progress','進行中'],['wait','確認待ち'],['done','完了']];
+const STATUSES=[['progress','進行中'],['wait','確認待ち'],['done','完了']];
 
 // ===== RENDER =====
 function render(){
@@ -915,26 +917,20 @@ function render(){
     const dl=dL(c.deadline);const isU=dl!==null&&dl<=7&&c.status!=='done';
     const dlStr=c.deadline?fmtDs(c.deadline)+'（あと'+dl+'日）':'納期未設定';
     const covA=toArr(c.coverage);
-    const si=parseInt(c.step)||0;
+    const si=String(c.step||'1');
     const revisionCount=parseInt(c.revisionCount)||0;
-    const highlightTypes=STEP_MAIL_MAP[si]||[];
     const remind=isRemind(c),overdue=isOverdue(c);
     const pdLeft=c.paydue?dL(c.paydue):null;
     const pdBdg=c.paid==='入金済み'?`<span class="badge b-paid">入金済み</span>`:overdue?`<span class="badge b-overdue">超過${Math.abs(pdLeft)}日</span>`:remind?`<span class="badge b-remind"><i class="ti ti-bell" style="font-size:10px;vertical-align:-1px;margin-right:2px"></i>${pdLeft}日前</span>`:c.paid==='後払い'?`<span class="badge b-postpaid">後払い</span>`:`<span class="badge b-unpaid">未入金</span>`;
     const sButtons=STATUSES.map(([sv,sl])=>`<button class="qb qb-s${c.status===sv?' on':''}" onclick="quickSetStatus(event,${i},'${sv}')">${sl}</button>`).join('');
-    const stepButtons=STEPS.map((s,j)=>`<button class="qb qb-p${si===j?' on':''}" onclick="quickSetStep(event,${i},${j})">${s}</button>`).join('');
+    const stepButtons=STEP_OPTIONS.map(([sv,sl])=>`<button class="qb qb-p${si===sv?' on':''}" onclick="quickSetStep(event,${i},'${sv}')">${sl}</button>`).join('');
     const paidCtrl=c.paid==='入金済み'?`<span style="font-size:12px;color:var(--gr);margin-left:auto;padding:2px 6px">✓ 入金済み</span>`:`<button class="qb-paid-btn" onclick="quickSetPaid(event,${i})"><i class="ti ti-circle-check" style="font-size:10px;vertical-align:-1px;margin-right:3px"></i>入金済み</button>`;
     const priceStr=c.price?'¥'+parseInt(c.price).toLocaleString():'';
-    const MAIL_SHORT={estimate:'見積',invoice:'請求',roughDraft:'大ラフ',lineArt:'清書前',delivery:'納品'};
-    const mailBtns=ALL_MAIL_TYPES.map(t=>`<button class="qb-mail${highlightTypes.includes(t)?' hl':''}" onclick="openEmailOv(event,${i},'${t}')">${MAIL_SHORT[t]}</button>`).join('');
-    const remindBtn=c.paid!=='入金済み'?`<button class="qb-remind" onclick="openEmailOv(event,${i},'payment')"><i class="ti ti-bell" style="font-size:10px;vertical-align:-1px"></i>催促</button>`:'';
-    const declineBtn=`<button class="qb-decline" onclick="openEmailOv(event,${i},'decline')">断り</button>`;
     return`<div class="case-card${remind?' remind-active':''}" id="card-${i}" style="cursor:pointer">
-      <div class="card-top"><span class="badge ${S_CLS[c.status]||'b-new'}">${S_LBL[c.status]||'新規'}</span>${pdBdg}<span class="card-name">${c.name||'（名前未入力）'}</span><span class="card-dl${isU?' urg':''}">${dlStr}</span>${priceStr?`<span class="card-price">${priceStr}</span>`:''}</div>
+      <div class="card-top"><span class="badge ${S_CLS[c.status]||'b-wait'}">${S_LBL[c.status]||'確認待ち'}</span>${pdBdg}<span class="card-name">${c.name||'（名前未入力）'}</span><span class="card-dl${isU?' urg':''}">${dlStr}</span>${priceStr?`<span class="card-price">${priceStr}</span>`:''}</div>
       <div class="card-quick">
         <div class="qb-row"><span class="qb-lbl">状態</span>${sButtons}${paidCtrl}</div>
-        <div class="qb-row"><span class="qb-lbl">工程</span>${stepButtons}</div>
-        <div class="qb-row"><span class="qb-lbl">修正</span><button class="rc-btn" onclick="adjRev(event,${i},-1)">−</button><span class="rc-val">${revisionCount}回</span><button class="rc-btn" onclick="adjRev(event,${i},1)">＋</button><span style="margin-left:auto;display:flex;gap:3px;flex-wrap:wrap">${mailBtns}${remindBtn}${declineBtn}<button class="qb-arc" onclick="archiveCase(event,${i})" title="アーカイブ"><i class="ti ti-archive"></i></button><button class="qb-arc" onclick="copyCardJson(event,${i})" title="Claudeに貼り付け用JSONをコピー"><i class="ti ti-clipboard"></i></button></span></div>
+        <div class="qb-row qb-row-bottom"><span class="qb-lbl">工程</span>${stepButtons}<span class="qb-card-actions"><span class="qb-rev-group"><span class="qb-lbl">修正</span><button class="rc-btn" onclick="adjRev(event,${i},-1)">−</button><span class="rc-val">${revisionCount}回</span><button class="rc-btn" onclick="adjRev(event,${i},1)">＋</button></span><button class="qb-arc" onclick="archiveCase(event,${i})" title="アーカイブ"><i class="ti ti-archive"></i></button></span></div>
       </div>
     </div>`;
   }).join('');
@@ -944,16 +940,6 @@ function closeDoneOv(){document.getElementById('done-overlay').close();}
 function doneKeep(){cases[doneIdx].status='done';closeDoneOv();saveAll();}
 function doneArchive(){cases[doneIdx].status='done';archive.push(cases.splice(doneIdx,1)[0]);closeDoneOv();saveAll();}
 function archiveCase(e,i){e.stopPropagation();if(!confirm('「'+(cases[i].name||'この案件')+'」をアーカイブに移動しますか？'))return;const _arc=cases.splice(i,1)[0];archive.push(_arc);saveAll();}
-function copyCardJson(e,i){
-  e.stopPropagation();
-  const c=cases[i];
-  const EXCLUDE=['goodMemo'];
-  const out={};
-  Object.keys(c).forEach(k=>{if(!EXCLUDE.includes(k))out[k]=c[k];});
-  navigator.clipboard.writeText(JSON.stringify(out,null,2)).then(()=>{
-    showInvToast('📋 JSONをコピーしました — Claudeに貼り付けてください');
-  }).catch(()=>alert('コピーに失敗しました。ブラウザの設定をご確認ください。'));
-}
 function restoreCase(i){cases.push(archive.splice(i,1)[0]);saveAll();renderArchive();}
 function renderArchive(){
   const list=document.getElementById('arc-list');const empty=document.getElementById('arc-empty');
@@ -968,12 +954,45 @@ function renderArchive(){
     const pdBdg=c.paid==='入金済み'?`<span class="badge b-paid">入金済み</span>`:c.paid==='後払い'?`<span class="badge b-postpaid">後払い</span>`:`<span class="badge b-unpaid">未入金</span>`;
     return`<div class="arc-card" id="arc-card-${i}">
       <div class="arc-info">
-        <div class="card-top"><span class="badge ${S_CLS[c.status]||'b-new'}">${S_LBL[c.status]||'新規'}</span>${pdBdg}<span class="card-name">${c.name||'（名前未入力）'}</span><span class="card-dl">${dlStr}</span>${priceStr?`<span class="card-price">${priceStr}</span>`:''}</div>
+        <div class="card-top"><span class="badge ${S_CLS[c.status]||'b-wait'}">${S_LBL[c.status]||'確認待ち'}</span>${pdBdg}<span class="card-name">${c.name||'（名前未入力）'}</span><span class="card-dl">${dlStr}</span>${priceStr?`<span class="card-price">${priceStr}</span>`:''}</div>
       </div>
       <button class="restore-btn" onclick="restoreCase(${i})"><i class="ti ti-arrow-back-up"></i> 一覧に戻す</button>
       <button class="del-btn" onclick="deleteFromArchive(${i})"><i class="ti ti-trash"></i> 完全削除</button>
     </div>`;
   }).join('');
+}
+
+function renderModalMailActions(c,show){
+  const box=document.getElementById('detail-mail-actions');
+  const buttons=document.getElementById('detail-mail-buttons');
+  if(!box||!buttons)return;
+  box.style.display='flex';
+  if(!show){
+    buttons.style.display='none';
+    buttons.innerHTML='';
+    return;
+  }
+  const MAIL_SHORT={estimate:'見積',invoice:'請求',roughDraft:'大ラフ',lineArt:'清書前',delivery:'納品'};
+  const mailBtns=ALL_MAIL_TYPES.map(t=>`<button class="qb-mail" onclick="openModalEmail(event,'${t}')">${MAIL_SHORT[t]}</button>`).join('');
+  const remindBtn=c.paid!=='入金済み'?`<button class="qb-remind" onclick="openModalEmail(event,'payment')"><i class="ti ti-bell" style="font-size:10px;vertical-align:-1px"></i>催促</button>`:'';
+  const declineBtn=`<button class="qb-decline" onclick="openModalEmail(event,'decline')">断り</button>`;
+  buttons.style.display='flex';
+  buttons.innerHTML=`${mailBtns}${remindBtn}${declineBtn}`;
+}
+
+function refreshModalMailActionsFromForm(){
+  if(editIdx===null||editIsArchive||!cases[editIdx])return;
+  renderModalMailActions({
+    ...cases[editIdx],
+    step:document.getElementById('m-step').value,
+    paid:document.getElementById('m-paid').value
+  },true);
+}
+
+function openModalEmail(e,type){
+  e.stopPropagation();
+  if(editIdx===null||editIsArchive||!cases[editIdx])return;
+  openEmailOv(e,editIdx,type);
 }
 
 // ===== MODAL =====
@@ -1012,18 +1031,19 @@ function openModal(idx,fromArchive){
     resetPfChips();
   };
   resetChips();resetEstimate();
-  const c=isE?(editIsArchive?archive[idx]:cases[idx]):{received:todayYmd(),paid:'未入金',status:'new',step:'0',revisionCount:'0'};
+  const c=isE?normalizeCase(editIsArchive?archive[idx]:cases[idx]):{received:todayYmd(),paid:'未入金',status:'wait',step:'1',revisionCount:'0'};
+  renderModalMailActions(c,isE&&!editIsArchive);
   document.getElementById('m-name').value=c.name||'';
   document.getElementById('m-contact').value=c.contact||'';
   document.getElementById('m-received').value=c.received||'';
   document.getElementById('m-deadline').value=c.deadline||'';
   document.getElementById('m-paydue').value=c.paydue||'';
-  document.getElementById('m-status').value=c.status||'new';
+  document.getElementById('m-status').value=c.status||'wait';
   document.getElementById('m-detail').value=c.detail||'';
   document.getElementById('m-price').value=c.price||'';
   document.getElementById('m-paid').value=c.paid||'未入金';
   updatePaidStatusUI(false);
-  document.getElementById('m-step').value=c.step||'0';
+  document.getElementById('m-step').value=c.step||'1';
   document.getElementById('m-revision').value=c.revisionCount||'0';
   document.getElementById('m-memo').value=c.memo||'';
   document.getElementById('m-is-company').checked=c.isCompany||false;
@@ -1688,7 +1708,7 @@ function buildScheduleMap(){
   targets.forEach(({c,i})=>{
     const slots=getCaseStepSlots(c);
     if(!slots)return;
-    const si=parseInt(c.step)||0;
+    const si=parseInt(c.step)||1;
     const stages=[
       {kind:'rough',count:slots.rough,activeStep:1},
       {kind:'line',count:slots.line,activeStep:2},
@@ -1989,7 +2009,7 @@ function applyImportJson(){
     return;
   }
   // 既存案件に追加
-  cases=cases.concat(newCases.map(normalizeRevision));
+  cases=cases.concat(newCases.map(normalizeCase));
   saveAll();
   closeImportOv();
   // 成功通知（インボイストーストを流用）
@@ -2011,8 +2031,8 @@ function importBackup(){
         const data=JSON.parse(ev.target.result);
         if(!data.cases&&!data.archive){alert('有効なバックアップファイルではありません。');return;}
         if(!confirm('現在のデータを上書きしてインポートしますか？\nこの操作は取り消せません。'))return;
-        if(Array.isArray(data.cases))cases=data.cases.map(normalizeRevision);
-        if(Array.isArray(data.archive))archive=data.archive.map(normalizeRevision);
+        if(Array.isArray(data.cases))cases=data.cases.map(normalizeCase);
+        if(Array.isArray(data.archive))archive=data.archive.map(normalizeCase);
         if(data.settings)localStorage.setItem('cfg',JSON.stringify({...DEF_CFG,...data.settings}));
         if(data.profile)localStorage.setItem('profile',JSON.stringify({...DEF_PROF,...data.profile}));
         if(data.invseq&&typeof data.invseq==='object'){
@@ -2044,6 +2064,10 @@ function showInvToast(msg){
 function hlPdf(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/\{\{[^}]+\}\}/g,m=>`<span style="background:#ffe580;padding:0 2px;border-radius:2px">${m}</span>`);
+}
+
+function noteHtmlPdf(s){
+  return hlPdf(String(s).replace(/\\n/g,'\n').replace(/\r\n?/g,'\n'));
 }
 
 function buildInvBreakdown(ed, price, covA, usgA){
@@ -2163,7 +2187,7 @@ function printInvoicePDF(){
   </div>
 
   <!-- 備考 -->
-  ${prof.invNotes?`<div style="font-size:11px;color:#555;border-top:1px solid #ddd;padding-top:12px;line-height:2.2">${prof.invNotes.split('\\n').map(l=>`<div>${hl(l)}</div>`).join('')}</div>`:''}
+  ${prof.invNotes?`<div style="font-size:11px;color:#555;border-top:1px solid #ddd;padding-top:12px;line-height:2.2;white-space:pre-line">${noteHtmlPdf(prof.invNotes)}</div>`:''}
 
 </div>`;
 
