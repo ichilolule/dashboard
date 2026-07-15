@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="案件管理">
 <meta name="theme-color" content="#714944">
 
-<title>案件管理 v48</title>
+<title>案件管理 v53</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -42,10 +42,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .top-bar h1{font-size:18px;font-weight:500;color:var(--bg)}
 .sync-btn{font-size:12px;padding:4px 10px;border-radius:var(--rs);border:.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:var(--bg);cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;transition:background .15s}
 .sync-btn:hover{background:rgba(255,255,255,.22)}
-.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem}
-.stat{background:var(--bg2);border:.5px solid var(--bd);border-radius:var(--r);padding:.75rem 1rem}
-.stat-label{font-size:12px;color:var(--tx3);margin-bottom:3px}
-.stat-value{font-size:20px;font-weight:500}
 .alert-bar{border-radius:var(--rs);padding:.55rem 1rem;font-size:13px;display:none;margin-bottom:.4rem}
 .alert-bar.show{display:block}
 .a-amber{background:var(--am-bg);border:.5px solid var(--am-bd);color:var(--am)}
@@ -63,7 +59,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .case-card.remind-active{border-color:var(--am-bd)}
 .case-card.highlight{border-color:var(--ac);background:var(--bg2)}
 .badge{font-size:12px;padding:2px 8px;border-radius:20px;white-space:nowrap;font-weight:500}
-.b-prog{background:var(--gr-bg);color:var(--gr)}.b-wait{background:var(--am-bg);color:var(--am)}.b-done{background:var(--gr-bg);color:var(--gr)}
+.b-prog{background:var(--gr-bg);color:var(--gr)}.b-wait{background:var(--am-bg);color:var(--am)}
 .b-paid{background:var(--gr-bg);color:var(--gr);font-size:11px}.b-unpaid{background:var(--rd-bg);color:var(--rd);font-size:11px}
 .b-postpaid{background:var(--am-bg);color:var(--am);font-size:11px}
 .b-remind{background:var(--am-bg);color:var(--am);font-size:11px}.b-overdue{background:var(--rd-bg);color:var(--rd);font-size:11px}
@@ -208,6 +204,15 @@ input:checked+.sw:before{transform:translateX(15px)}
 .settings-row input[type=number]{width:90px;font-size:14px;border:.5px solid var(--bd);border-radius:var(--rs);padding:4px 8px;background:var(--bg2);color:var(--tx);text-align:right}
 .settings-row input[type=text]{flex:1;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:4px 8px;background:var(--bg2);color:var(--tx)}
 .settings-row .unit{font-size:13px;color:var(--tx3);min-width:30px}
+.draw-settings-list{display:flex;flex-direction:column;gap:5px}
+.draw-setting-row{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:.5px solid var(--bd)}
+.draw-setting-row:last-child{border-bottom:none}
+.draw-setting-row input[type=text]{flex:1;min-width:0;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:4px 8px;background:var(--bg2);color:var(--tx)}
+.draw-setting-row input[type=number]{width:86px;font-size:13px;border:.5px solid var(--bd);border-radius:var(--rs);padding:4px 8px;background:var(--bg2);color:var(--tx);text-align:right}
+.draw-setting-row .unit{font-size:12px;color:var(--tx3);white-space:nowrap}
+.draw-item-btn{font-size:12px;padding:4px 8px;border-radius:var(--rs);border:.5px solid var(--bd);background:var(--bg2);color:var(--tx2);cursor:pointer;white-space:nowrap}
+.draw-item-btn:hover{background:var(--bg3)}
+.draw-hidden-summary{font-size:12px;color:var(--tx3);cursor:pointer;margin-top:8px}
 .reset-btn{font-size:13px;padding:5px 14px;border-radius:var(--rs);border:.5px solid var(--bd);background:var(--bg2);color:var(--tx2);cursor:pointer;margin-top:.5rem}
 .reset-btn:hover{background:var(--bg3)}
 /* modals */
@@ -295,12 +300,6 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
     <button class="sync-btn" onclick="importBackup()" title="dashboard_sync.json を読み込む"><i class="ti ti-download"></i> 読み込み</button>
   </div>
 </div>
-<div class="summary">
-  <div class="stat"><div class="stat-label">進行中</div><div class="stat-value" id="s-prog">0</div></div>
-  <div class="stat"><div class="stat-label">確認待ち</div><div class="stat-value" id="s-wait">0</div></div>
-  <div class="stat"><div class="stat-label">今月完了</div><div class="stat-value" id="s-done">0</div></div>
-  <div class="stat"><div class="stat-label">累計売上</div><div class="stat-value" id="s-sales">¥0</div></div>
-</div>
 <div class="alert-bar a-amber" id="alert-pay"></div>
 <div class="alert-bar a-red" id="alert-dl"></div>
 <div id="today-panel-container"></div>
@@ -374,10 +373,12 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
     </div>
     <div class="settings-section">
       <h3><i class="ti ti-currency-yen" style="vertical-align:-2px;margin-right:5px"></i>基本料金</h3>
-      <div class="settings-row"><label>SDキャラクター（2〜3頭身）</label><input type="number" id="cfg-priceSD" onchange="saveCfg()"><span class="unit">円〜</span></div>
-      <div class="settings-row"><label>顔のみ</label><input type="number" id="cfg-priceFace" onchange="saveCfg()"><span class="unit">円〜</span></div>
-      <div class="settings-row"><label>バストアップ</label><input type="number" id="cfg-priceBust" onchange="saveCfg()"><span class="unit">円〜</span></div>
-      <div class="settings-row"><label>全身（5〜7頭身）</label><input type="number" id="cfg-priceFull" onchange="saveCfg()"><span class="unit">円〜</span></div>
+      <div id="cfg-draw-active" class="draw-settings-list"></div>
+      <button type="button" class="reset-btn" onclick="addDrawSettingItem()"><i class="ti ti-plus"></i> 項目を追加</button>
+      <details id="cfg-draw-hidden-wrap">
+        <summary class="draw-hidden-summary">非表示の項目</summary>
+        <div id="cfg-draw-hidden" class="draw-settings-list" style="margin-top:5px"></div>
+      </details>
     </div>
     <div class="settings-section">
       <h3><i class="ti ti-plus" style="vertical-align:-2px;margin-right:5px"></i>オプション料金</h3>
@@ -395,6 +396,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
       <h3><i class="ti ti-calendar" style="vertical-align:-2px;margin-right:5px"></i>期日・スケジュール設定</h3>
       <div class="settings-row"><label>支払期限（納期から自動計算）</label><input type="number" id="cfg-paydueDays" onchange="saveCfg()"><span class="unit">日前</span></div>
       <div class="settings-row"><label>催促リマインダー</label><input type="number" id="cfg-remindDays" onchange="saveCfg()"><span class="unit">日前</span></div>
+      <div class="settings-row"><label>業務日の日付変更時刻</label><input type="number" id="cfg-businessDayStartHour" onchange="saveCfg()" min="0" max="23"><span class="unit">時</span></div>
       <div style="border-top:.5px dashed var(--bd);padding-top:.75rem;margin-top:.5rem"></div>
       <div style="font-size:13px;font-weight:500;color:var(--tx);margin-bottom:.5rem"><i class="ti ti-clock" style="vertical-align:-2px;margin-right:4px;font-size:14px"></i>作業時間ブロック（カレンダー自動配置用）</div>
       <div class="settings-row"><label>朝〜昼の作業時間</label><input type="number" id="cfg-morningHours" onchange="saveCfg()" min="1" max="12"><span class="unit">時間</span></div>
@@ -418,7 +420,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 <!-- アーカイブ -->
 <div class="tp" id="tp-archive">
   <div class="arc-hdr">
-    <div class="arc-hdr-note">完了・アーカイブ済みの案件。「一覧に戻す」でいつでも復元できます。</div>
+    <div class="arc-hdr-note">アーカイブ済みの案件。「一覧に戻す」でいつでも復元できます。</div>
     <button id="arc-delall-btn" class="arc-delall-btn" onclick="deleteAllArchive()" style="display:none"><i class="ti ti-trash"></i> 全件削除</button>
   </div>
   <div class="arc-list" id="arc-list"></div>
@@ -451,7 +453,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
         <div class="sl">描写範囲（複数追加可）</div>
         <div id="chars-con"></div>
         <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
-          <button type="button" class="add-char-btn" onclick="addChar()"><i class="ti ti-plus" style="font-size:13px"></i> 固定項目を追加</button>
+          <button type="button" class="add-char-btn" onclick="addChar()"><i class="ti ti-plus" style="font-size:13px"></i> 基本料金項目を追加</button>
           <button type="button" class="add-char-btn" onclick="addCustom()"><i class="ti ti-pencil" style="font-size:13px"></i> その他（任意金額）</button>
         </div>
       </div>
@@ -537,7 +539,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
       <div class="fr"><label id="paydue-label">支払い期限（14日前）</label><input id="m-paydue" type="date"></div>
     </div>
     <div class="fr-row">
-      <div class="fr"><label>状態</label><select id="m-status"><option value="progress">進行中</option><option value="wait">確認待ち</option><option value="done">完了</option></select></div>
+      <div class="fr"><label>状態</label><select id="m-status"><option value="progress">進行中</option><option value="wait">確認待ち</option></select></div>
       <div class="fr"><label>工程</label><select id="m-step" onchange="refreshModalMailActionsFromForm()"><option value="1">大ラフ</option><option value="2">清書前ラフ</option><option value="3">清書</option><option value="4">レタッチ</option><option value="5">納品済み</option></select></div>
     </div>
     <div class="fr-row">
@@ -569,7 +571,6 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 </div>
 </dialog>
 
-<!-- 完了確認 -->
 <!-- JSONペーストインポート用 -->
 <dialog class="overlay" id="import-overlay">
 <div class="modal">
@@ -587,14 +588,6 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
     <button onclick="closeImportOv()">キャンセル</button>
     <button class="btn-p" onclick="applyImportJson()"><i class="ti ti-download"></i> 追加する</button>
   </div>
-</div>
-</dialog>
-
-<dialog class="overlay" id="done-overlay">
-<div class="modal modal-sm">
-  <div style="font-size:15px;font-weight:500;margin-bottom:.75rem">案件を完了にする</div>
-  <div style="font-size:14px;color:var(--tx2);margin-bottom:1rem">「<span id="done-name"></span>」をアーカイブに移動しますか？<br>アーカイブからいつでも案件一覧に戻せます。</div>
-  <div class="mbtns"><button onclick="closeDoneOv()">キャンセル</button><button onclick="doneKeep()">一覧に残す</button><button class="btn-p" onclick="doneArchive()"><i class="ti ti-archive"></i> 完了＆アーカイブ</button></div>
 </div>
 </dialog>
 
@@ -635,26 +628,151 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 
 <script>
 // ===== DEFAULT SETTINGS =====
-const DEF_CFG = {priceSD:6000,priceFace:7000,priceBust:8500,priceFull:10000,priceNC:6000,priceBG:3000,rateStream:30,rateGoods:100,ratePrivate:20,ratePaypal:5,paydueDays:14,remindDays:2,dailyHours:4,morningHours:5,nightHours:4,hourlyRate:1800,holidayWeekdays:[0],waitDays:7,weightRough:100,weightLine:100,weightClean:100,weightRetouch:100};
-const CFG_KEYS = ['priceSD','priceFace','priceBust','priceFull','priceNC','priceBG','rateStream','rateGoods','ratePrivate','ratePaypal','paydueDays','remindDays','dailyHours','morningHours','nightHours','hourlyRate','waitDays','weightRough','weightLine','weightClean','weightRetouch'];
+const DEF_DRAW_ITEMS = [
+  {id:'sd',label:'SDキャラクター（2〜3頭身）',coverage:'SDキャラクター',price:6000,hidden:false},
+  {id:'face',label:'顔のみ',coverage:'顔のみ',price:7000,hidden:false},
+  {id:'bust',label:'バストアップ',coverage:'バストアップ',price:8500,hidden:false},
+  {id:'full',label:'全身（5〜7頭身）',coverage:'全身',price:10000,hidden:false}
+];
+const DEF_CFG = {priceSD:6000,priceFace:7000,priceBust:8500,priceFull:10000,priceNC:6000,priceBG:3000,rateStream:30,rateGoods:100,ratePrivate:20,ratePaypal:5,paydueDays:14,remindDays:2,businessDayStartHour:5,dailyHours:4,morningHours:5,nightHours:4,hourlyRate:1800,holidayWeekdays:[0],waitDays:7,weightRough:100,weightLine:100,weightClean:100,weightRetouch:100};
+const CFG_KEYS = ['priceSD','priceFace','priceBust','priceFull','priceNC','priceBG','rateStream','rateGoods','ratePrivate','ratePaypal','paydueDays','remindDays','businessDayStartHour','dailyHours','morningHours','nightHours','hourlyRate','waitDays','weightRough','weightLine','weightClean','weightRetouch'];
 const DEF_PROF = {name:'',studio:'',addr:'',email:'',web:'',bankInfo:'',paypayId:'',invNotes:''};
 
-function getCfg(){try{return{...DEF_CFG,...JSON.parse(localStorage.getItem('cfg')||'{}')};}catch(e){return{...DEF_CFG};}}
+function clampHour(v){const n=parseInt(v);return Number.isFinite(n)?Math.max(0,Math.min(23,n)):5;}
+function makeDrawId(){return'draw_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);}
+function shortDrawLabel(label){return String(label||'').replace(/（.*?）/g,'').trim();}
+function buildLegacyDrawItems(c){
+  return DEF_DRAW_ITEMS.map(item=>{
+    const key=item.id==='sd'?'priceSD':item.id==='face'?'priceFace':item.id==='bust'?'priceBust':'priceFull';
+    return{...item,price:parseInt(c[key])||item.price};
+  });
+}
+function normalizeDrawItems(items,cfg){
+  const src=Array.isArray(items)&&items.length?items:buildLegacyDrawItems(cfg||DEF_CFG);
+  const used=new Set();
+  const out=src.map((item,i)=>{
+    const base=DEF_DRAW_ITEMS.find(d=>d.id===item.id)||(!item.id?DEF_DRAW_ITEMS[i]:{})||{};
+    let id=String(item.id||base.id||makeDrawId());
+    if(used.has(id))id=makeDrawId();
+    used.add(id);
+    const label=String(item.label||item.l||base.label||'名称未設定').trim()||'名称未設定';
+    const coverage=String(item.coverage||base.coverage||shortDrawLabel(label)||label).trim();
+    return{id,label,coverage,price:Math.max(0,parseInt(item.price??item.p??base.price)||0),hidden:!!item.hidden};
+  });
+  if(!out.some(item=>!item.hidden)&&out.length)out[0].hidden=false;
+  return out.length?out:buildLegacyDrawItems(cfg||DEF_CFG);
+}
+function syncLegacyDrawPrices(c){
+  const items=normalizeDrawItems(c.drawItems,c);
+  c.drawItems=items;
+  const byId=Object.fromEntries(items.map(item=>[item.id,item]));
+  c.priceSD=parseInt(byId.sd?.price)||c.priceSD||DEF_CFG.priceSD;
+  c.priceFace=parseInt(byId.face?.price)||c.priceFace||DEF_CFG.priceFace;
+  c.priceBust=parseInt(byId.bust?.price)||c.priceBust||DEF_CFG.priceBust;
+  c.priceFull=parseInt(byId.full?.price)||c.priceFull||DEF_CFG.priceFull;
+  return c;
+}
+function getCfg(){
+  try{
+    const raw=JSON.parse(localStorage.getItem('cfg')||'{}');
+    const c={...DEF_CFG,...raw};
+    c.businessDayStartHour=clampHour(c.businessDayStartHour);
+    c.drawItems=normalizeDrawItems(raw.drawItems,c);
+    return syncLegacyDrawPrices(c);
+  }catch(e){
+    const c={...DEF_CFG};
+    c.drawItems=normalizeDrawItems(null,c);
+    return syncLegacyDrawPrices(c);
+  }
+}
 function getProfile(){try{return{...DEF_PROF,...JSON.parse(localStorage.getItem('profile')||'{}')};}catch(e){return{...DEF_PROF};}}
 
 function saveCfg(){
   const c=getCfg();
   CFG_KEYS.forEach(k=>{const el=document.getElementById('cfg-'+k);if(el)c[k]=parseInt(el.value)||0;});
+  c.drawItems=collectDrawItemsFromSettings(c.drawItems);
   // 定休日チェックボックス
   const hw=[];
   document.querySelectorAll('#cfg-holidays input[type=checkbox]').forEach(cb=>{if(cb.checked)hw.push(parseInt(cb.value));});
   c.holidayWeekdays=hw;
+  saveCfgObject(c);
+}
+function saveCfgObject(c,opt={}){
+  syncLegacyDrawPrices(c);
   localStorage.setItem('cfg',JSON.stringify(c));
   updateSettingsLabels();
   renderCharsEst();calcEst();
+  activeBusinessDay=todayYmd();
+  updateInvSeqPreview();
+  scheduleBusinessDayRefresh();
   // カレンダーが表示中なら再描画
   if(document.getElementById('tp-cal').classList.contains('active'))renderCal();
   render();
+}
+function collectDrawItemsFromSettings(fallback){
+  const rows=document.querySelectorAll('.draw-setting-row');
+  if(!rows.length)return normalizeDrawItems(fallback,getCfg());
+  return[...rows].map(row=>({
+    id:row.dataset.drawId||makeDrawId(),
+    label:row.querySelector('[data-draw-label]')?.value.trim()||'名称未設定',
+    coverage:row.dataset.drawCoverage||'',
+    price:parseInt(row.querySelector('[data-draw-price]')?.value)||0,
+    hidden:row.dataset.drawHidden==='1'
+  }));
+}
+function makeDrawSettingRow(item){
+  const row=document.createElement('div');
+  row.className='draw-setting-row';
+  row.dataset.drawId=item.id;
+  row.dataset.drawHidden=item.hidden?'1':'0';
+  row.dataset.drawCoverage=item.coverage||'';
+  const name=document.createElement('input');
+  name.type='text';name.value=item.label;name.dataset.drawLabel='1';name.onchange=saveCfg;
+  const price=document.createElement('input');
+  price.type='number';price.value=item.price||'';price.min='0';price.dataset.drawPrice='1';price.onchange=saveCfg;
+  const unit=document.createElement('span');
+  unit.className='unit';unit.textContent='円〜';
+  const btn=document.createElement('button');
+  btn.type='button';btn.className='draw-item-btn';
+  btn.textContent=item.hidden?'復元':'削除';
+  btn.onclick=()=>item.hidden?restoreDrawSettingItem(item.id):hideDrawSettingItem(item.id);
+  row.appendChild(name);row.appendChild(price);row.appendChild(unit);row.appendChild(btn);
+  return row;
+}
+function renderDrawSettings(items=getCfg().drawItems){
+  const active=document.getElementById('cfg-draw-active');
+  const hidden=document.getElementById('cfg-draw-hidden');
+  const wrap=document.getElementById('cfg-draw-hidden-wrap');
+  if(!active||!hidden)return;
+  const list=normalizeDrawItems(items,getCfg());
+  active.innerHTML='';hidden.innerHTML='';
+  list.filter(item=>!item.hidden).forEach(item=>active.appendChild(makeDrawSettingRow(item)));
+  list.filter(item=>item.hidden).forEach(item=>hidden.appendChild(makeDrawSettingRow(item)));
+  if(wrap)wrap.style.display=list.some(item=>item.hidden)?'block':'none';
+}
+function addDrawSettingItem(){
+  const c=getCfg();
+  c.drawItems=collectDrawItemsFromSettings(c.drawItems);
+  c.drawItems.push({id:makeDrawId(),label:'新規項目',coverage:'',price:0,hidden:false});
+  saveCfgObject(c);
+  renderDrawSettings(c.drawItems);
+}
+function hideDrawSettingItem(id){
+  const c=getCfg();
+  c.drawItems=collectDrawItemsFromSettings(c.drawItems);
+  if(c.drawItems.filter(item=>!item.hidden).length<=1){alert('描写範囲の項目は最低1つ必要です。');return;}
+  const item=c.drawItems.find(item=>item.id===id);
+  if(item)item.hidden=true;
+  saveCfgObject(c);
+  renderDrawSettings(c.drawItems);
+}
+function restoreDrawSettingItem(id){
+  const c=getCfg();
+  c.drawItems=collectDrawItemsFromSettings(c.drawItems);
+  const item=c.drawItems.find(item=>item.id===id);
+  if(item)item.hidden=false;
+  saveCfgObject(c);
+  renderDrawSettings(c.drawItems);
 }
 function saveProfile(){
   const p={
@@ -669,10 +787,11 @@ function saveProfile(){
   };
   localStorage.setItem('profile',JSON.stringify(p));
 }
-function resetCfg(){if(!confirm('設定をデフォルトに戻しますか？'))return;localStorage.removeItem('cfg');loadSettingsUI();updateSettingsLabels();renderCharsEst();calcEst();}
+function resetCfg(){if(!confirm('設定をデフォルトに戻しますか？'))return;localStorage.removeItem('cfg');loadSettingsUI();updateSettingsLabels();renderCharsEst();calcEst();activeBusinessDay=todayYmd();updateInvSeqPreview();scheduleBusinessDayRefresh();render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();}
 function loadSettingsUI(){
   const c=getCfg();
   CFG_KEYS.forEach(k=>{const el=document.getElementById('cfg-'+k);if(el)el.value=c[k];});
+  renderDrawSettings(c.drawItems);
   // 定休日チェックボックス生成
   const holEl=document.getElementById('cfg-holidays');
   if(holEl){
@@ -719,11 +838,15 @@ function updateSettingsLabels(){
   const epfno=document.getElementById('e-pf-no-chip');if(epfno)epfno.textContent='不可（+'+c.ratePrivate+'%）';
   const pdl=document.getElementById('paydue-label');if(pdl)pdl.textContent='支払い期限（'+c.paydueDays+'日前）';
 }
-function getDRAW(){const c=getCfg();return[{l:'SDキャラクター（2〜3頭身）',p:c.priceSD},{l:'顔のみ',p:c.priceFace},{l:'バストアップ',p:c.priceBust},{l:'全身（5〜7頭身）',p:c.priceFull}];}
-const DRAW_CHIP=['SDキャラクター','顔のみ','バストアップ','全身'];
+function getDRAW(){return getCfg().drawItems.filter(item=>!item.hidden).map(item=>({id:item.id,l:item.label,p:item.price,coverage:shortDrawLabel(item.label)||item.label,legacyCoverage:item.coverage||''}));}
+function drawCoverageLabel(item){return item?(shortDrawLabel(item.l)||item.l):'';}
+function findDrawIndexByLabel(label,DRAW=getDRAW()){
+  const target=String(label||'').trim();
+  return DRAW.findIndex(item=>target===item.l||target===drawCoverageLabel(item)||target===item.legacyCoverage);
+}
 const STEP_OPTIONS=[['1','大ラフ'],['2','清書前ラフ'],['3','清書'],['4','レタッチ'],['5','納品済み']];
-const S_LBL={progress:'進行中',wait:'確認待ち',done:'完了'};
-const S_CLS={progress:'b-prog',wait:'b-wait',done:'b-done'};
+const S_LBL={progress:'進行中',wait:'確認待ち'};
+const S_CLS={progress:'b-prog',wait:'b-wait'};
 
 // ===== DATA =====
 let cases=[],archive=[];
@@ -737,19 +860,20 @@ function normalizeCase(c){
   c.revisionCount=String(Math.max(0,unified));
   delete c.revFree;
   delete c.revPaid;
-  if(!['progress','wait','done'].includes(c.status))c.status='wait';
+  if(c.status==='done')c.status='wait';
+  if(!['progress','wait'].includes(c.status))c.status='wait';
   c.step=String(c.step||'1');
   if(!['1','2','3','4','5'].includes(c.step))c.step='1';
   return c;
 }
 cases=cases.map(normalizeCase);
 archive=archive.map(normalizeCase);
-let editIdx=null,editIsArchive=false,doneIdx=null,emailCaseIdx=null,emailType=null,emailLang='ja',declineVariant='soft',sortMode='deadline';
+let editIdx=null,editIsArchive=false,emailCaseIdx=null,emailType=null,emailLang='ja',declineVariant='soft',sortMode='deadline';
 let calYear,calMonth;
-const BUSINESS_DAY_START_HOUR=5;
+function getBusinessDayStartHour(){return clampHour(getCfg().businessDayStartHour);}
 function getBusinessDate(base=new Date()){
   const d=new Date(base);
-  d.setHours(d.getHours()-BUSINESS_DAY_START_HOUR);
+  d.setHours(d.getHours()-getBusinessDayStartHour());
   return d;
 }
 function todayYmd(){return ymd(getBusinessDate());}
@@ -761,6 +885,8 @@ function saveAll(){localStorage.setItem('cases',JSON.stringify(cases));localStor
 // 値を配列に正規化（文字列/null/undefinedにも対応）
 function toArr(v){return Array.isArray(v)?v:(v?[v]:[]);}
 function dL(d){return d?daysBetween(todayYmd(),d):null;}
+function calendarTodayYmd(){return ymd(new Date());}
+function dLDeadlineAlert(d){return d?daysBetween(calendarTodayYmd(),d):null;}
 function fmtD(v){if(!v)return'未設定';const d=new Date((String(v).length===10?v+'T12:00:00':v));return d.getFullYear()+'/'+(d.getMonth()+1).toString().padStart(2,'0')+'/'+(d.getDate()).toString().padStart(2,'0');}
 function fmtDs(v){if(!v)return'—';const d=new Date(v+'T12:00:00');return(d.getMonth()+1)+'/'+(d.getDate());}
 function isRemind(c){const pd=c.paydue;if(!pd||c.paid==='入金済み')return false;const d=dL(pd);return d!==null&&d>=0&&d<=getCfg().remindDays;}
@@ -876,7 +1002,7 @@ function sortedCases(){
     const unpaid=cases.filter(c=>c.paid!=='入金済み'&&c.paid!=='後払い');
     return pinDeliveredPostpaid([...byDeadline(workApproved),...byDeadline(unpaid)]);
   }
-  if(sortMode==='status'){const o={progress:0,wait:1,done:2};return pinDeliveredPostpaid([...cases].sort((a,b)=>(o[a.status]||9)-(o[b.status]||9)));}
+  if(sortMode==='status'){const o={progress:0,wait:1};return pinDeliveredPostpaid([...cases].sort((a,b)=>(o[a.status]??9)-(o[b.status]??9)));}
   return pinDeliveredPostpaid([...cases].sort((a,b)=>{if(!a.received)return 1;if(!b.received)return -1;return new Date(b.received+'T12:00:00')-new Date(a.received+'T12:00:00');}));
 }
 
@@ -884,7 +1010,7 @@ function sortedCases(){
 const MAIL_LBL={estimate:'見積もりメール',invoice:'請求書メール',roughDraft:'大ラフ確認',lineArt:'清書前確認',delivery:'納品メール',decline:'お断りメール'};
 const MAIL_LBL_EN={estimate:'Quotation',invoice:'Invoice',roughDraft:'Rough Draft',lineArt:'Line Art Draft',delivery:'Delivery',decline:'Decline'};
 const ALL_MAIL_TYPES=['estimate','invoice','roughDraft','lineArt','delivery'];
-const STATUSES=[['progress','進行中'],['wait','確認待ち'],['done','完了']];
+const STATUSES=[['progress','進行中'],['wait','確認待ち']];
 
 // ===== RENDER =====
 function render(){
@@ -894,19 +1020,10 @@ function render(){
   const ap=document.getElementById('alert-pay');
   if(remC.length){ap.classList.add('show');ap.innerHTML='<i class="ti ti-bell-ringing" style="vertical-align:-2px;margin-right:6px"></i>支払期限'+cfg.remindDays+'日以内：'+remC.map(c=>'「'+(c.name||'—')+'」あと'+dL(c.paydue)+'日').join('、');}
   else ap.classList.remove('show');
-  const dlU=cases.filter(c=>c.status!=='done'&&c.deadline&&dL(c.deadline)>=0&&dL(c.deadline)<=7);
+  const dlU=cases.filter(c=>c.deadline&&dLDeadlineAlert(c.deadline)>=0&&dLDeadlineAlert(c.deadline)<=7);
   const ad=document.getElementById('alert-dl');
-  if(dlU.length){ad.classList.add('show');ad.innerHTML='<i class="ti ti-alert-triangle" style="vertical-align:-2px;margin-right:6px"></i>今週締切：'+dlU.map(c=>c.name||'—').join('、');}
+  if(dlU.length){ad.classList.add('show');ad.innerHTML='<i class="ti ti-alert-triangle" style="vertical-align:-2px;margin-right:6px"></i>締切まで：'+dlU.map(c=>'「'+(c.name||'—')+'」あと'+dLDeadlineAlert(c.deadline)+'日').join('、');}
   else ad.classList.remove('show');
-  const businessDate=getBusinessDate();
-  const mn=businessDate.getMonth(),my=businessDate.getFullYear();
-  const doneAll=[...cases,...archive].filter(c=>c.status==='done'&&c.deadline&&new Date(c.deadline+'T12:00:00').getFullYear()===my&&new Date(c.deadline+'T12:00:00').getMonth()===mn);
-  // 累計売上：「完了」案件の合計（入金状況に関わらず、心理的負担軽減）
-  const doneSales=[...cases,...archive].filter(c=>c.status==='done');
-  document.getElementById('s-prog').textContent=cases.filter(c=>c.status==='progress').length;
-  document.getElementById('s-wait').textContent=cases.filter(c=>c.status==='wait').length;
-  document.getElementById('s-done').textContent=doneAll.length;
-  document.getElementById('s-sales').textContent='¥'+doneSales.reduce((a,c)=>a+(parseInt(c.price)||0),0).toLocaleString();
   const ab=document.getElementById('arc-badge');
   if(archive.length){ab.style.display='inline';ab.textContent=archive.length;}else ab.style.display='none';
   const list=document.getElementById('case-list');
@@ -914,7 +1031,7 @@ function render(){
   if(!sorted.length){list.innerHTML='<div style="font-size:14px;color:var(--tx2);padding:.5rem 0">案件がまだありません</div>';return;}
   list.innerHTML=sorted.map(c=>{
     const i=cases.indexOf(c);
-    const dl=dL(c.deadline);const isU=dl!==null&&dl<=7&&c.status!=='done';
+    const dl=dLDeadlineAlert(c.deadline);const isU=dl!==null&&dl<=7;
     const dlStr=c.deadline?fmtDs(c.deadline)+'（あと'+dl+'日）':'納期未設定';
     const covA=toArr(c.coverage);
     const si=String(c.step||'1');
@@ -936,9 +1053,6 @@ function render(){
   }).join('');
 }
 
-function closeDoneOv(){document.getElementById('done-overlay').close();}
-function doneKeep(){cases[doneIdx].status='done';closeDoneOv();saveAll();}
-function doneArchive(){cases[doneIdx].status='done';archive.push(cases.splice(doneIdx,1)[0]);closeDoneOv();saveAll();}
 function archiveCase(e,i){e.stopPropagation();if(!confirm('「'+(cases[i].name||'この案件')+'」をアーカイブに移動しますか？'))return;const _arc=cases.splice(i,1)[0];archive.push(_arc);saveAll();}
 function restoreCase(i){cases.push(archive.splice(i,1)[0]);saveAll();renderArchive();}
 function renderArchive(){
@@ -948,7 +1062,7 @@ function renderArchive(){
   empty.style.display='none';
   if(delAllBtn)delAllBtn.style.display='inline-flex';
   list.innerHTML=archive.map((c,i)=>{
-    const dl=dL(c.deadline);
+    const dl=dLDeadlineAlert(c.deadline);
     const dlStr=c.deadline?fmtDs(c.deadline)+'（あと'+dl+'日）':'納期未設定';
     const priceStr=c.price?'¥'+parseInt(c.price).toLocaleString():'';
     const pdBdg=c.paid==='入金済み'?`<span class="badge b-paid">入金済み</span>`:c.paid==='後払い'?`<span class="badge b-postpaid">後払い</span>`:`<span class="badge b-unpaid">未入金</span>`;
@@ -1066,9 +1180,10 @@ function restoreEstimate(c){
   if(!ed){
     const covA=toArr(c.coverage);
     if(covA.length){
+      const DRAW=getDRAW();
       estChars=[];estCustoms=[];
       covA.forEach(label=>{
-        const idx=DRAW_CHIP.indexOf(label);
+        const idx=findDrawIndexByLabel(label,DRAW);
         if(idx>=0){estChars.push({id:nci++,di:idx});}
         else{estCustoms.push({id:ncc++,name:label,price:0});}
       });
@@ -1087,7 +1202,7 @@ function restoreEstimate(c){
   estChars=[];estCustoms=[];nci=1;ncc=1;
   const DRAW=getDRAW();
   (ed.items||[]).forEach(item=>{
-    const idx=DRAW.findIndex(d=>d.l===item.label);
+    const idx=findDrawIndexByLabel(item.label,DRAW);
     if(idx>=0){estChars.push({id:nci++,di:idx});}
     else{estCustoms.push({id:ncc++,name:item.label,price:item.price||0});}
   });
@@ -1170,7 +1285,7 @@ function saveCase(){
   c.portfolio=getPfValFromEst();
   // 見積もり計算から描写範囲・使用用途・背景・キャラデザを派生
   const DRAW=getDRAW();
-  const covFromEst=estChars.map(ch=>DRAW_CHIP[ch.di]).filter(Boolean);
+  const covFromEst=estChars.map(ch=>drawCoverageLabel(DRAW[ch.di])).filter(Boolean);
   estCustoms.forEach(cu=>{if(cu.name&&cu.name.trim())covFromEst.push(cu.name.trim());});
   c.coverage=covFromEst;
   const usgFromEst=[...document.querySelectorAll('#e-usg .chip.on:not([data-other])')].map(ch=>ch.dataset.label);
@@ -1416,7 +1531,9 @@ function renderCharsEst(){
   const DRAW=getDRAW();
   const con=document.getElementById('chars-con');if(!con)return;
   con.innerHTML='';
+  if(!DRAW.length)return;
   estChars.forEach(c=>{
+    if(!DRAW[c.di])c.di=0;
     const row=document.createElement('div');row.className='char-row';
     const sel=document.createElement('select');sel.onchange=e=>{c.di=parseInt(e.target.value);const pr=row.querySelector('.char-price');if(pr)pr.textContent='¥'+DRAW[c.di].p.toLocaleString();calcEst();};
     DRAW.forEach((o,i)=>{const op=document.createElement('option');op.value=i;op.textContent=o.l+'　¥'+o.p.toLocaleString()+'〜';if(i===c.di)op.selected=true;sel.appendChild(op);});
@@ -1452,6 +1569,7 @@ function smartDiscount(raw){
 function calcEst(updateDiscount=true){
   const cfg=getCfg();
   const DRAW=getDRAW();
+  estChars.forEach(c=>{if(!DRAW[c.di])c.di=0;});
   const baseFixed=estChars.reduce((s,c)=>s+(DRAW[c.di]?.p||0),0);
   const baseCustom=estCustoms.reduce((s,c)=>s+(parseInt(c.price)||0),0);
   const base=baseFixed+baseCustom;
@@ -1576,7 +1694,6 @@ function clearEst(){
 
 function quickSetStatus(e,i,v){
   e.stopPropagation();
-  if(v==='done'){doneIdx=i;document.getElementById('done-name').textContent=cases[i].name||'（名前未入力）';document.getElementById('done-overlay').showModal();return;}
   cases[i].status=v;saveAll();
 }
 function quickSetStep(e,i,v){e.stopPropagation();cases[i].step=v;saveAll();}
@@ -1600,7 +1717,7 @@ function parseYmd(s){return new Date(s+'T12:00:00');}
 function addDays(s,n){const d=parseYmd(s);d.setDate(d.getDate()+n);return ymd(d);}
 function daysBetween(s1,s2){return Math.round((parseYmd(s2)-parseYmd(s1))/86400000);}
 
-// AM5時を業務上の日付変更時刻とし、開きっぱなしでも予定を再計算する
+// 設定した時刻を業務上の日付変更時刻とし、開きっぱなしでも予定を再計算する
 let activeBusinessDay=todayYmd(),businessDayTimer=null;
 function refreshBusinessDay(){
   const nextBusinessDay=todayYmd();
@@ -1622,7 +1739,7 @@ function scheduleBusinessDayRefresh(){
   clearTimeout(businessDayTimer);
   const current=new Date();
   const next=new Date(current);
-  next.setHours(BUSINESS_DAY_START_HOUR,0,0,0);
+  next.setHours(getBusinessDayStartHour(),0,0,0);
   if(current>=next)next.setDate(next.getDate()+1);
   businessDayTimer=setTimeout(refreshBusinessDay,next-current+250);
 }
@@ -1686,7 +1803,7 @@ function getCaseStepSlots(c){
 function buildScheduleMap(){
   const cfg=getCfg();
   const sched={};
-  const targets=cases.map((c,i)=>({c,i})).filter(o=>((o.c.paid==='入金済み'&&o.c.paidDate)||o.c.paid==='後払い')&&o.c.status!=='done'&&o.c.status!=='wait'&&o.c.deadline);
+  const targets=cases.map((c,i)=>({c,i})).filter(o=>((o.c.paid==='入金済み'&&o.c.paidDate)||o.c.paid==='後払い')&&o.c.status!=='wait'&&o.c.deadline);
   const today=todayYmd();
 
   function ensureDay(d){if(!sched[d])sched[d]={morning:null,night:null,wait:[]};return sched[d];}
@@ -2033,7 +2150,11 @@ function importBackup(){
         if(!confirm('現在のデータを上書きしてインポートしますか？\nこの操作は取り消せません。'))return;
         if(Array.isArray(data.cases))cases=data.cases.map(normalizeCase);
         if(Array.isArray(data.archive))archive=data.archive.map(normalizeCase);
-        if(data.settings)localStorage.setItem('cfg',JSON.stringify({...DEF_CFG,...data.settings}));
+        if(data.settings){
+          const importedCfg={...DEF_CFG,...data.settings};
+          importedCfg.drawItems=normalizeDrawItems(data.settings.drawItems,importedCfg);
+          localStorage.setItem('cfg',JSON.stringify(syncLegacyDrawPrices(importedCfg)));
+        }
         if(data.profile)localStorage.setItem('profile',JSON.stringify({...DEF_PROF,...data.profile}));
         if(data.invseq&&typeof data.invseq==='object'){
           Object.entries(data.invseq).forEach(([k,v])=>{
@@ -2043,6 +2164,8 @@ function importBackup(){
         if(data.spotHolidays&&typeof data.spotHolidays==='object'){
           localStorage.setItem('holidays',JSON.stringify(data.spotHolidays));
         }
+        activeBusinessDay=todayYmd();
+        scheduleBusinessDayRefresh();
         loadSettingsUI();updateSettingsLabels();
         saveAll();render();
         alert('インポートが完了しました（'+cases.length+'件）');
