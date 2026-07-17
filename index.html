@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="案件管理">
 <meta name="theme-color" content="#714944">
 
-<title>案件管理 v53</title>
+<title>案件管理 v55</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -868,7 +868,7 @@ function normalizeCase(c){
 }
 cases=cases.map(normalizeCase);
 archive=archive.map(normalizeCase);
-let editIdx=null,editIsArchive=false,emailCaseIdx=null,emailType=null,emailLang='ja',declineVariant='soft',sortMode='deadline';
+let editIdx=null,editIsArchive=false,emailCaseIdx=null,emailType=null,emailLang='ja',declineVariant='soft',sortMode='deadline',backupImportInput=null;
 let calYear,calMonth;
 function getBusinessDayStartHour(){return clampHour(getCfg().businessDayStartHour);}
 function getBusinessDate(base=new Date()){
@@ -1020,7 +1020,7 @@ function render(){
   const ap=document.getElementById('alert-pay');
   if(remC.length){ap.classList.add('show');ap.innerHTML='<i class="ti ti-bell-ringing" style="vertical-align:-2px;margin-right:6px"></i>支払期限'+cfg.remindDays+'日以内：'+remC.map(c=>'「'+(c.name||'—')+'」あと'+dL(c.paydue)+'日').join('、');}
   else ap.classList.remove('show');
-  const dlU=cases.filter(c=>c.deadline&&dLDeadlineAlert(c.deadline)>=0&&dLDeadlineAlert(c.deadline)<=7);
+  const dlU=cases.filter(c=>c.deadline&&!(c.paid==='後払い'&&String(c.step)==='5')&&dLDeadlineAlert(c.deadline)>=0&&dLDeadlineAlert(c.deadline)<=7);
   const ad=document.getElementById('alert-dl');
   if(dlU.length){ad.classList.add('show');ad.innerHTML='<i class="ti ti-alert-triangle" style="vertical-align:-2px;margin-right:6px"></i>締切まで：'+dlU.map(c=>'「'+(c.name||'—')+'」あと'+dLDeadlineAlert(c.deadline)+'日').join('、');}
   else ad.classList.remove('show');
@@ -2137,42 +2137,64 @@ function applyImportJson(){
   }
 }
 
-function importBackup(){
+function getBackupImportInput(){
+  if(backupImportInput)return backupImportInput;
   const input=document.createElement('input');
   input.type='file';input.accept='.json';
-  input.onchange=e=>{
-    const file=e.target.files[0];if(!file)return;
-    const reader=new FileReader();
-    reader.onload=ev=>{
-      try{
-        const data=JSON.parse(ev.target.result);
-        if(!data.cases&&!data.archive){alert('有効なバックアップファイルではありません。');return;}
-        if(!confirm('現在のデータを上書きしてインポートしますか？\nこの操作は取り消せません。'))return;
-        if(Array.isArray(data.cases))cases=data.cases.map(normalizeCase);
-        if(Array.isArray(data.archive))archive=data.archive.map(normalizeCase);
-        if(data.settings){
-          const importedCfg={...DEF_CFG,...data.settings};
-          importedCfg.drawItems=normalizeDrawItems(data.settings.drawItems,importedCfg);
-          localStorage.setItem('cfg',JSON.stringify(syncLegacyDrawPrices(importedCfg)));
-        }
-        if(data.profile)localStorage.setItem('profile',JSON.stringify({...DEF_PROF,...data.profile}));
-        if(data.invseq&&typeof data.invseq==='object'){
-          Object.entries(data.invseq).forEach(([k,v])=>{
-            if(k.startsWith('invseq_'))localStorage.setItem(k,String(v));
-          });
-        }
-        if(data.spotHolidays&&typeof data.spotHolidays==='object'){
-          localStorage.setItem('holidays',JSON.stringify(data.spotHolidays));
-        }
-        activeBusinessDay=todayYmd();
-        scheduleBusinessDayRefresh();
-        loadSettingsUI();updateSettingsLabels();
-        saveAll();render();
-        alert('インポートが完了しました（'+cases.length+'件）');
-      }catch(err){alert('ファイルの読み込みに失敗しました。有効なJSONファイルか確認してください。');}
-    };
-    reader.readAsText(file);
+  input.setAttribute('aria-hidden','true');
+  input.tabIndex=-1;
+  input.style.position='fixed';
+  input.style.left='-9999px';
+  input.style.top='0';
+  input.style.width='1px';
+  input.style.height='1px';
+  input.style.opacity='0';
+  input.addEventListener('change',handleBackupFileSelect);
+  document.body.appendChild(input);
+  backupImportInput=input;
+  return input;
+}
+
+function handleBackupFileSelect(e){
+  const file=e.target.files&&e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onerror=()=>alert('ファイルを読み込めませんでした。iCloudなどの同期が完了してから、もう一度お試しください。');
+  reader.onabort=()=>alert('ファイルの読み込みが中断されました。もう一度お試しください。');
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!data.cases&&!data.archive){alert('有効なバックアップファイルではありません。');return;}
+      if(!confirm('現在のデータを上書きしてインポートしますか？\nこの操作は取り消せません。'))return;
+      if(Array.isArray(data.cases))cases=data.cases.map(normalizeCase);
+      if(Array.isArray(data.archive))archive=data.archive.map(normalizeCase);
+      if(data.settings){
+        const importedCfg={...DEF_CFG,...data.settings};
+        importedCfg.drawItems=normalizeDrawItems(data.settings.drawItems,importedCfg);
+        localStorage.setItem('cfg',JSON.stringify(syncLegacyDrawPrices(importedCfg)));
+      }
+      if(data.profile)localStorage.setItem('profile',JSON.stringify({...DEF_PROF,...data.profile}));
+      if(data.invseq&&typeof data.invseq==='object'){
+        Object.entries(data.invseq).forEach(([k,v])=>{
+          if(k.startsWith('invseq_'))localStorage.setItem(k,String(v));
+        });
+      }
+      if(data.spotHolidays&&typeof data.spotHolidays==='object'){
+        localStorage.setItem('holidays',JSON.stringify(data.spotHolidays));
+      }
+      activeBusinessDay=todayYmd();
+      scheduleBusinessDayRefresh();
+      loadSettingsUI();updateSettingsLabels();
+      saveAll();render();
+      alert('インポートが完了しました（'+cases.length+'件）');
+    }catch(err){alert('ファイルの読み込みに失敗しました。有効なJSONファイルか確認してください。');}
   };
+  try{reader.readAsText(file);}
+  catch(err){alert('ファイルを読み込めませんでした。iCloudなどの同期が完了してから、もう一度お試しください。');}
+}
+
+function importBackup(){
+  const input=getBackupImportInput();
+  input.value='';
   input.click();
 }
 
@@ -2351,6 +2373,9 @@ document.getElementById('arc-list').addEventListener('click',e=>{
   const i=parseInt(card.id.replace('arc-card-',''));
   if(!isNaN(i))openModal(i,true);
 });
+
+// 初回のファイル選択でchangeが落ちる環境への対策として、読み込み用inputを先に作って保持する
+getBackupImportInput();
 </script>
 <!-- 請求書PDF印刷用（@media printのみ表示） -->
 <div id="pdf-invoice"></div>
