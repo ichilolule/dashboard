@@ -1696,11 +1696,29 @@ function quickSetStatus(e,i,v){
   e.stopPropagation();
   cases[i].status=v;saveAll();
 }
-function quickSetStep(e,i,v){e.stopPropagation();cases[i].step=v;saveAll();}
+function quickSetStep(e,i,v){
+  e.stopPropagation();
+  const c=cases[i];
+  if(!c)return;
+  if(v==='5'&&c.paid!=='後払い'){
+    if(!confirm('「'+(c.name||'この案件')+'」を納品済みにして、アーカイブに移動しますか？'))return;
+    c.step=v;
+    archive.push(cases.splice(i,1)[0]);
+    saveAll();
+    return;
+  }
+  c.step=v;
+  saveAll();
+}
 function quickSetPaid(e,i){
   e.stopPropagation();
-  cases[i].paid='入金済み';
-  if(!cases[i].paidDate)cases[i].paidDate=todayYmd();
+  const c=cases[i];
+  if(!c)return;
+  const shouldArchive=c.paid==='後払い';
+  if(shouldArchive&&!confirm('「'+(c.name||'この案件')+'」を入金済みにして、アーカイブに移動しますか？'))return;
+  c.paid='入金済み';
+  if(!c.paidDate)c.paidDate=todayYmd();
+  if(shouldArchive)archive.push(cases.splice(i,1)[0]);
   saveAll();
 }
 
