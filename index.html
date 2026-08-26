@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="案件管理">
 <meta name="theme-color" content="#714944">
 
-<title>案件管理 v55</title>
+<title>案件管理 v59</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -146,6 +146,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .qb-decline:hover{background:var(--rd-bg)}
 .detail-actions{border-top:.5px solid var(--bd);margin-top:.85rem;padding-top:.85rem;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .detail-actions-buttons{display:flex;gap:4px;flex-wrap:wrap}
+.detail-data-actions{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+.case-json-btn{font-size:12px;padding:3px 9px;border-radius:var(--rs);border:.5px solid var(--bd);background:var(--bg2);color:var(--tx2);cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.case-json-btn:hover{background:var(--bg3);border-color:var(--tx3)}
 .detail-company-toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--tx2);cursor:pointer;white-space:nowrap}
 /* calendar multi-month */
 .cal-month-hdr{font-size:14px;font-weight:500;color:var(--tx);margin:1.1rem 0 .4rem;padding-bottom:.25rem;border-bottom:.5px solid var(--bd)}
@@ -556,10 +559,13 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
     <div class="fr"><label>メモ・特記事項</label><textarea id="m-memo" class="auto-grow" placeholder="依頼者の要望、注意事項など" oninput="autoGrowTextarea(this)"></textarea></div>
     <div class="detail-actions" id="detail-mail-actions">
       <div class="detail-actions-buttons" id="detail-mail-buttons"></div>
-      <label class="detail-company-toggle" title="敬称が「様」から「御中」になります">
-        <span>企業依頼</span>
-        <span class="tgl"><input type="checkbox" id="m-is-company"><span class="sw"></span></span>
-      </label>
+      <div class="detail-data-actions">
+        <button type="button" class="case-json-btn" id="btn-copy-case" onclick="copyCurrentCaseJson()" title="この案件だけのJSONをクリップボードにコピーします"><i class="ti ti-copy"></i> JSONコピー</button>
+        <label class="detail-company-toggle" title="敬称が「様」から「御中」になります">
+          <span>企業依頼</span>
+          <span class="tgl"><input type="checkbox" id="m-is-company"><span class="sw"></span></span>
+        </label>
+      </div>
     </div>
   </div>
 
@@ -1114,6 +1120,7 @@ function openModal(idx,fromArchive){
   editIdx=idx;editIsArchive=!!fromArchive;const isE=idx!==null&&idx!==undefined;
   document.getElementById('modal-title').textContent=isE?(editIsArchive?'アーカイブ案件を編集':'案件を編集'):'新しい案件';
   document.getElementById('btn-del').style.display=isE?'block':'none';
+  document.getElementById('btn-copy-case').style.display=isE?'inline-flex':'none';
   document.querySelectorAll('.modal-tab').forEach((t,i)=>t.classList.toggle('active',i===0));
   document.querySelectorAll('.mp').forEach((p,i)=>p.classList.toggle('active',i===0));
   const resetChips=()=>{
@@ -1260,9 +1267,8 @@ function deleteCase(){
   if(!confirm('「'+(cases[editIdx].name||'この案件')+'」を削除しますか？'))return;
   cases.splice(editIdx,1);closeModal();saveAll();
 }
-function saveCase(){
-  const isNew=editIdx===null;
-  const c=isNew?{}:(editIsArchive?archive[editIdx]:cases[editIdx]);
+function collectCaseFormData(base={}){
+  const c={...base};
   c.name=document.getElementById('m-name').value.trim();
   c.contact=document.getElementById('m-contact').value.trim();
   c.received=document.getElementById('m-received').value;
@@ -1296,11 +1302,20 @@ function saveCase(){
   c.chara=document.getElementById('e-nc').checked?'新規キャラクター':'既存キャラクター';
   // 構造化見積もりデータ（請求書PDF用）を保存
   if(window._estData)c.estimateData=window._estData;
+  return c;
+}
+function saveCase(){
+  const isNew=editIdx===null;
+  const c=collectCaseFormData(isNew?{}:(editIsArchive?archive[editIdx]:cases[editIdx]));
   // 新規案件作成時に請求書番号を採番して固定
   if(isNew){
     c.invNum=getNextInvNum();
     cases.push(c);
     updateInvSeqPreview();
+  }else if(editIsArchive){
+    archive[editIdx]=c;
+  }else{
+    cases[editIdx]=c;
   }
   const wasArchive=editIsArchive;
   closeModal();saveAll();
@@ -2104,6 +2119,26 @@ function exportBackup(){
   const a=document.createElement('a');a.href=url;
   a.download='dashboard_sync.json';
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
+async function copyCurrentCaseJson(){
+  if(editIdx===null||editIdx===undefined)return;
+  const source=editIsArchive?archive[editIdx]:cases[editIdx];
+  if(!source)return;
+  const caseData=collectCaseFormData(source);
+  const json=JSON.stringify(caseData,null,2);
+  try{
+    await navigator.clipboard.writeText(json);
+  }catch(err){
+    const area=document.createElement('textarea');
+    area.value=json;
+    area.style.position='fixed';area.style.left='-9999px';area.style.top='0';
+    document.body.appendChild(area);area.focus();area.select();
+    const copied=document.execCommand('copy');
+    document.body.removeChild(area);
+    if(!copied){showInvToast('コピーできませんでした');return;}
+  }
+  showInvToast('案件JSONをクリップボードにコピーしました');
 }
 
 function openImportOv(){
