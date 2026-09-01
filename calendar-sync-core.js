@@ -209,7 +209,11 @@
       progress(++done, total);
     }
     for (const { previous, item } of changes.update) {
-      const update = previous.eventLabelId && !item.eventLabelId ? { ...item, eventLabelId: '' } : item;
+      const update = previous.eventLabelId && !item.eventLabelId ? { ...item, eventLabelId: '' } : { ...item };
+      // Google PATCH merges EventDateTime objects. Clear timed-event fields explicitly
+      // when restoring a dashboard-owned event to an all-day event.
+      update.start = { ...item.start, dateTime: null };
+      update.end = { ...item.end, dateTime: null };
       await api(withLabelVersion(base + '/' + encodeURIComponent(previous.id) + '?sendUpdates=none', update),
         { method: 'PATCH', body: update, etag: previous.etag });
       progress(++done, total);

@@ -5,7 +5,7 @@
   const DEVICE_KEY = 'dashboardGoogleCalendarDevice';
   const SCOPES = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.calendarlist.readonly';
   const API_ROOT = 'https://www.googleapis.com/calendar/v3';
-  const BUILD = 'v60';
+  const BUILD = 'v61';
   const CLIENT_COLORS = [
     { backgroundColor: '#7986cb', colorId: '1' }, { backgroundColor: '#33b679', colorId: '2' },
     { backgroundColor: '#8e24aa', colorId: '3' }, { backgroundColor: '#e67c73', colorId: '4' },

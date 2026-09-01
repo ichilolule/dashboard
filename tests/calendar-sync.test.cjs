@@ -23,7 +23,16 @@ function fakeApi() {
     if (method === 'POST' && old) throw Object.assign(new Error('conflict'), { status: 409 });
     if (opt.etag && old?.etag !== opt.etag) throw Object.assign(new Error('etag'), { status: 412 });
     if (method === 'DELETE') { db.delete(id); return {}; }
-    const next = { ...(old || {}), ...structuredClone(opt.body), id, etag: 'e' + ++serial };
+    const body = structuredClone(opt.body);
+    const next = { ...(old || {}), ...body, id, etag: 'e' + ++serial };
+    // Google PATCH merges EventDateTime subfields instead of replacing the object.
+    if (method === 'PATCH' && old) {
+      for (const field of ['start', 'end']) {
+        if (!body[field]) continue;
+        next[field] = { ...(old[field] || {}), ...body[field] };
+        for (const [key, value] of Object.entries(next[field])) if (value === null) delete next[field][key];
+      }
+    }
     db.set(id, next);
     return structuredClone(next);
   }
@@ -72,6 +81,22 @@ test('removes an existing custom label when falling back to a standard event col
   await sync(server, state, standard);
   assert.ok(server.calls.some(call => call.method === 'PATCH' && call.body?.eventLabelId === '' &&
     call.path.includes('eventLabelVersion=1')));
+});
+test('restores a timed managed event to all-day without leaving conflicting time fields', async () => {
+  const server = fakeApi(), state = initial();
+  await sync(server, state);
+  const managed = [...server.db.values()].find(event => event.summary?.startsWith('☀️'));
+  managed.start = { dateTime: '2026-09-01T11:00:00+09:00', timeZone: 'Asia/Tokyo' };
+  managed.end = { dateTime: '2026-09-01T12:00:00+09:00', timeZone: 'Asia/Tokyo' };
+  managed.etag = 'manually-timed';
+  const result = await sync(server, state);
+  assert.equal(result.updated, 1);
+  assert.equal(server.db.get(managed.id).start.date, '2026-09-01');
+  assert.equal(server.db.get(managed.id).end.date, '2026-09-02');
+  assert.ok(!server.db.get(managed.id).start.dateTime && !server.db.get(managed.id).end.dateTime);
+  const call = server.calls.findLast(item => item.method === 'PATCH' && item.body?.summary?.startsWith('☀️'));
+  assert.equal(call.body.start.dateTime, null);
+  assert.equal(call.body.end.dateTime, null);
 });
 test('all-day boundaries handle month/year/leap rollover and reject invalid dates', () => {
   assert.equal(Core.nextDay('2026-12-31'), '2027-01-01');
