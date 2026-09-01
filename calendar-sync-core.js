@@ -6,8 +6,8 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const APP = 'ichilole-dashboard-calendar-v1';
+  const TAKEOVER_AFTER_MS = 5 * 60 * 1000;
   const LABELS = { rough: '大ラフ', line: '清書前ラフ', clean: '清書', retouch: 'レタッチ' };
-  const SOURCE_URL = 'https://ichilolule.github.io/dashboard/';
   function validDate(value) {
     return /^\d{4}-\d{2}-\d{2}$/.test(value || '') &&
       Number.isFinite(Date.parse(value + 'T00:00:00Z')) &&
@@ -20,12 +20,22 @@
     return date.toISOString().slice(0, 10);
   }
   function name(value) { return String(value || '名称未設定').replace(/[\r\n]/g, ' ').slice(0, 180); }
+  function detail(value) { return String(value || '').replace(/\r\n?/g, '\n').trim().slice(0, 6000); }
+  function caseForTask(snapshot, task) {
+    const index = Number(task && task.idx);
+    if (Number.isInteger(index) && index >= 0 && snapshot.cases[index]) return snapshot.cases[index];
+    return snapshot.cases.find(item => String(item?.name || '') === String(task?.caseName || '')) || null;
+  }
+  function eventStyle(item) {
+    if (!item) return {};
+    return { labelId: String(item.calendarLabelId || ''), colorId: String(item.calendarColorId || '') };
+  }
   function buildEvents(snapshot) {
     if (!snapshot || !Array.isArray(snapshot.cases) || !snapshot.schedule || !validDate(snapshot.today))
       throw new Error('予定を取得できませんでした。Googleの予定は変更していません。');
     const events = [];
-    function add(key, date, title, detail) {
-      events.push({ key, date, title: title.slice(0, 800), detail });
+    function add(key, date, title, eventDetail, style = {}) {
+      events.push({ key, date, title: title.slice(0, 800), detail: eventDetail, ...style });
     }
     for (const date of Object.keys(snapshot.schedule).sort()) {
       const day = snapshot.schedule[date];
@@ -35,16 +45,21 @@
         const task = day[slot];
         if (!task) continue;
         if (!LABELS[task.kind]) throw new Error('未知の制作工程があるため転記を中止しました。');
-        const period = slot === 'morning' ? '朝昼' : '夜';
+        const icon = slot === 'morning' ? '☀️' : '🌃';
+        const item = caseForTask(snapshot, task);
+        const requestDetail = detail(item?.detail);
+        const lines = ['工程：' + LABELS[task.kind]];
+        if (item?.deadline) lines.push('納期：' + item.deadline);
+        if (requestDetail) lines.push('', '依頼詳細：', requestDetail);
         add('work:' + date + ':' + slot, date,
-          '［' + period + '］' + name(task.caseName) + '・' + LABELS[task.kind],
-          '自動配置された作業計画です。実績・確定時刻ではありません。\n枠：' + period +
-          '\n工程：' + LABELS[task.kind] + '\n案件：' + name(task.caseName));
+          icon + ' ' + name(task.caseName) + '｜' + LABELS[task.kind], lines.join('\n'), eventStyle(item));
       }
       if (day.wait && day.wait.length) {
         const names = day.wait.map(task => name(task.caseName));
+        const waitItems = day.wait.map(task => caseForTask(snapshot, task)).filter(Boolean);
         add('wait:' + date, date, '［返信待ち］' + names.join('／'),
-          'ダッシュボード上の返信待ち表示です。\n' + names.join('\n'));
+          'ダッシュボード上の返信待ち表示です。\n' + names.join('\n'),
+          waitItems.length === 1 ? eventStyle(waitItems[0]) : {});
       }
     }
     for (const [field, prefix] of [['deadline', '納期'], ['paydue', '支払期限']]) {
@@ -53,36 +68,44 @@
         if (!item[field] || (field === 'paydue' && item.paid === '入金済み')) continue;
         if (!validDate(item[field])) throw new Error('案件の期日が不正です。');
         if (!dates.has(item[field])) dates.set(item[field], []);
-        dates.get(item[field]).push(name(item.name));
+        dates.get(item[field]).push(item);
       }
-      for (const [date, names] of [...dates].sort())
+      for (const [date, items] of [...dates].sort()) {
+        const names = items.map(item => name(item.name));
         add(field + ':' + date, date, '［' + prefix + '］' + names.join('／'),
-          prefix + '：' + date + '\n' + names.join('\n'));
+          prefix + '：' + date + '\n' + names.join('\n'), items.length === 1 ? eventStyle(items[0]) : {});
+      }
     }
     if (events.length > 2500) throw new Error('予定が2,500件を超えています。転記範囲の確認が必要です。');
     return events.sort((a, b) => a.key.localeCompare(b.key));
   }
   function body(event, sourceId) {
-    return {
+    const result = {
       summary: event.title,
-      description: event.detail + '\n\n編集元：' + SOURCE_URL +
-        '\nGoogle側は参照用コピーです。制作予定の更新状況も併せて確認してください。',
+      description: event.detail,
       start: { date: event.date }, end: { date: nextDay(event.date) },
       transparency: 'transparent', visibility: 'private',
       reminders: { useDefault: false, overrides: [] },
       extendedProperties: { private: { dashboardApp: APP, dashboardSource: sourceId, dashboardKey: event.key } }
     };
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(event.labelId || ''))
+      result.eventLabelId = event.labelId;
+    else if (/^\d{1,3}$/.test(event.colorId || '')) result.colorId = event.colorId;
+    return result;
   }
   function owned(event, sourceId) {
     const p = event.extendedProperties && event.extendedProperties.private;
     return event.status !== 'cancelled' && p && p.dashboardApp === APP && p.dashboardSource === sourceId;
   }
   function equal(remote, desired) {
+    const styleEqual = desired.eventLabelId
+      ? remote.eventLabelId === desired.eventLabelId
+      : !remote.eventLabelId && (remote.colorId || '') === (desired.colorId || '');
     return remote.summary === desired.summary && remote.description === desired.description &&
       remote.start?.date === desired.start.date && remote.end?.date === desired.end.date &&
       !remote.start?.dateTime && !remote.end?.dateTime &&
       remote.transparency === 'transparent' && remote.visibility === 'private' &&
-      remote.reminders?.useDefault === false && !(remote.reminders?.overrides || []).length;
+      remote.reminders?.useDefault === false && !(remote.reminders?.overrides || []).length && styleEqual;
   }
   function diff(remote, desired, sourceId) {
     const byKey = new Map(), changes = { create: [], update: [], remove: [] };
@@ -118,7 +141,11 @@
     return item;
   }
   // api(path, {method, body, etag}) is injected so reconciliation can be tested offline.
-  async function synchronize({ api, state, snapshot, save, progress = () => {}, now = () => new Date() }) {
+  function withLabelVersion(path, item) {
+    if (!Object.prototype.hasOwnProperty.call(item, 'eventLabelId')) return path;
+    return path + (path.includes('?') ? '&' : '?') + 'eventLabelVersion=1';
+  }
+  async function synchronize({ api, state, snapshot, save, progress = () => {}, now = () => new Date(), takeover = false }) {
     const desired = buildEvents(snapshot).map(event => body(event, state.sourceId));
     if (!/^[a-f0-9]{32}$/.test(state.sourceId || '') || !state.deviceId)
       throw new Error('転記元の識別情報がありません。');
@@ -138,24 +165,36 @@
     if (markers.length > 1) throw new Error('更新状況の記録が重複しています。予定を変更せず停止しました。');
     let marker = markers[0];
     const props = marker?.extendedProperties.private || {};
+    const currentTime = now();
+    const timestamp = currentTime.toISOString();
     // Recover a successful remote commit whose local acknowledgement was interrupted.
     if (state.pendingRevision && props.revision === state.pendingRevision && !props.busy) {
       state.revision = props.revision;
       state.pendingRevision = '';
       save(state);
     }
-    if (props.busy && props.busy !== state.deviceId)
-      throw new Error('別の端末が転記中、または途中で停止しています。その端末で同期を完了してください。');
+    if (props.busy && props.busy !== state.deviceId) {
+      const busyAt = Date.parse(props.busySince || marker?.updated || '');
+      const canTakeover = Number.isFinite(busyAt) && currentTime.getTime() - busyAt >= TAKEOVER_AFTER_MS;
+      if (!takeover || !canTakeover) {
+        const error = new Error(canTakeover
+          ? '別の端末で中断した転記があります。この端末で引き継いで再開できます。'
+          : '別の端末が転記中です。完了後にもう一度転記してください。');
+        error.code = 'DASHBOARD_SYNC_BUSY';
+        error.canTakeover = canTakeover;
+        error.busySince = Number.isFinite(busyAt) ? new Date(busyAt).toISOString() : '';
+        throw error;
+      }
+    }
     if ((props.revision || '') !== (state.revision || ''))
       throw new Error('Google側に、別の端末で更新した予定があります。最新のJSONを読み込んでから接続してください。');
     const changes = diff(remote, desired, state.sourceId);
     const hash = await digest(JSON.stringify(desired));
-    const timestamp = now().toISOString();
     const revision = uuid();
     state.pendingRevision = revision;
     save(state);
     const lock = statusBody(snapshot.today, state.sourceId,
-      { revision: state.revision || '', busy: state.deviceId }, false, timestamp);
+      { revision: state.revision || '', busy: state.deviceId, busySince: timestamp }, false, timestamp);
     if (marker) {
       marker = await api(base + '/' + encodeURIComponent(marker.id), { method: 'PATCH', body: lock, etag: marker.etag });
     } else {
@@ -166,12 +205,13 @@
     let done = 0;
     const total = changes.create.length + changes.update.length + changes.remove.length;
     for (const item of changes.create) {
-      await api(base + '?sendUpdates=none', { method: 'POST', body: { id: uuid(), ...item } });
+      await api(withLabelVersion(base + '?sendUpdates=none', item), { method: 'POST', body: { id: uuid(), ...item } });
       progress(++done, total);
     }
     for (const { previous, item } of changes.update) {
-      await api(base + '/' + encodeURIComponent(previous.id) + '?sendUpdates=none',
-        { method: 'PATCH', body: item, etag: previous.etag });
+      const update = previous.eventLabelId && !item.eventLabelId ? { ...item, eventLabelId: '' } : item;
+      await api(withLabelVersion(base + '/' + encodeURIComponent(previous.id) + '?sendUpdates=none', update),
+        { method: 'PATCH', body: update, etag: previous.etag });
       progress(++done, total);
     }
     // Do not remove obsolete entries until every replacement has succeeded.
@@ -180,7 +220,7 @@
       progress(++done, total);
     }
     const complete = statusBody(snapshot.today, state.sourceId,
-      { revision, busy: '', snapshotHash: hash, lastSyncedAt: timestamp }, true, timestamp);
+      { revision, busy: '', busySince: '', snapshotHash: hash, lastSyncedAt: timestamp }, true, timestamp);
     await api(base + '/' + encodeURIComponent(marker.id), { method: 'PATCH', body: complete, etag: marker.etag });
     state.revision = revision;
     state.pendingRevision = '';
@@ -188,5 +228,5 @@
     save(state);
     return { count: desired.length, created: changes.create.length, updated: changes.update.length, removed: changes.remove.length };
   }
-  return { APP, SOURCE_URL, validDate, nextDay, buildEvents, body, diff, owned, equal, synchronize, uuid };
+  return { APP, TAKEOVER_AFTER_MS, validDate, nextDay, buildEvents, body, diff, owned, equal, synchronize, uuid };
 });

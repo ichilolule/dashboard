@@ -4,11 +4,11 @@ const Core = require('../calendar-sync-core.js');
 const sourceId = 'a'.repeat(32);
 const initial = () => ({ sourceId, deviceId: 'device-a', calendarId: 'dedicated@group.calendar.google.com', revision: '' });
 const snapshot = () => ({ today: '2026-09-01', cases: [
-  { name: '案件A', deadline: '2026-09-04', paydue: '2026-08-31', paid: '入金済み', contact: 'do-not-export', price: 999999, detail: 'secret' },
-  { name: '案件B', deadline: '2026-09-04', paydue: '2026-09-02', paid: '未入金' }
+  { name: '案件A', deadline: '2026-09-04', paydue: '2026-08-31', paid: '入金済み', contact: 'do-not-export', price: 999999, detail: '青い衣装・笑顔\nhttps://example.test/reference', memo: 'internal-only' },
+  { name: '案件B', deadline: '2026-09-04', paydue: '2026-09-02', paid: '未入金', detail: '立ち絵' }
 ], schedule: {
-  '2026-09-01': { morning: { kind: 'rough', caseName: '案件A' }, night: null, wait: [{ caseName: '案件B' }] },
-  '2026-09-02': { morning: null, night: { kind: 'clean', caseName: '案件A' }, wait: [] }
+  '2026-09-01': { morning: { idx: 0, kind: 'rough', caseName: '案件A' }, night: null, wait: [{ idx: 1, caseName: '案件B' }] },
+  '2026-09-02': { morning: null, night: { idx: 0, kind: 'clean', caseName: '案件A' }, wait: [] }
 } });
 function fakeApi() {
   const db = new Map(), calls = [];
@@ -29,22 +29,49 @@ function fakeApi() {
   }
   return { api, db, calls, fail: fn => { fail = fn; } };
 }
-const sync = (server, state, data = snapshot()) => Core.synchronize({ api: server.api, state, snapshot: data, save() {}, now: () => new Date('2026-09-01T12:00:00Z') });
+const sync = (server, state, data = snapshot(), options = {}) => Core.synchronize({
+  api: server.api, state, snapshot: data, save() {},
+  now: options.now || (() => new Date('2026-09-01T12:00:00Z')), takeover: options.takeover || false
+});
 
 test('exports the displayed slots and grouped dates, with no billing or contact data', () => {
   const data = snapshot();
   data.profile = { bankInfo: 'bank-secret' };
   const events = Core.buildEvents(data).map(e => Core.body(e, sourceId));
   assert.equal(events.length, 5);
+  const morning = events.find(e => e.summary.startsWith('☀️'));
+  assert.equal(morning.summary, '☀️ 案件A｜大ラフ');
+  assert.match(morning.description, /工程：大ラフ\n納期：2026-09-04\n\n依頼詳細：\n青い衣装・笑顔/);
+  assert.ok(!morning.description.includes('編集元') && !morning.description.includes('枠：'));
   assert.match(events.find(e => e.summary.startsWith('［納期］')).description, /案件A\n案件B/);
   const text = JSON.stringify(events);
-  for (const secret of ['do-not-export', '999999', 'secret', 'bank-secret']) assert.ok(!text.includes(secret));
+  assert.ok(text.includes('https://example.test/reference'));
+  for (const secret of ['do-not-export', '999999', 'internal-only', 'bank-secret']) assert.ok(!text.includes(secret));
   for (const event of events) {
     assert.equal(event.transparency, 'transparent');
     assert.deepEqual(event.reminders, { useDefault: false, overrides: [] });
     assert.equal(event.visibility, 'private');
     assert.equal(Date.parse(event.end.date) - Date.parse(event.start.date), 86400000);
   }
+});
+test('uses a custom client label when available and otherwise a Google event color', () => {
+  const custom = Core.body({ key: 'work:x', date: '2026-09-01', title: '予定', detail: '',
+    labelId: '12345678-1234-4234-8234-123456789abc', colorId: '7' }, sourceId);
+  assert.equal(custom.eventLabelId, '12345678-1234-4234-8234-123456789abc');
+  assert.ok(!custom.colorId);
+  const standard = Core.body({ key: 'work:y', date: '2026-09-01', title: '予定', detail: '', colorId: '7' }, sourceId);
+  assert.equal(standard.colorId, '7');
+});
+test('removes an existing custom label when falling back to a standard event color', async () => {
+  const server = fakeApi(), state = initial(), custom = snapshot();
+  custom.cases[0].calendarLabelId = '12345678-1234-4234-8234-123456789abc';
+  custom.cases[0].calendarColorId = '7';
+  await sync(server, state, custom);
+  const standard = snapshot();
+  standard.cases[0].calendarColorId = '7';
+  await sync(server, state, standard);
+  assert.ok(server.calls.some(call => call.method === 'PATCH' && call.body?.eventLabelId === '' &&
+    call.path.includes('eventLabelVersion=1')));
 });
 test('all-day boundaries handle month/year/leap rollover and reject invalid dates', () => {
   assert.equal(Core.nextDay('2026-12-31'), '2027-01-01');
@@ -76,11 +103,11 @@ test('changes and deletion affect only this source; manual and unrelated events 
 test('a deleted and subsequently reintroduced logical slot gets a fresh valid ID', async () => {
   const server = fakeApi(), state = initial();
   await sync(server, state);
-  const original = [...server.db.values()].find(e => e.summary?.startsWith('［朝昼］')).id;
+  const original = [...server.db.values()].find(e => e.summary?.startsWith('☀️')).id;
   const data = snapshot(); data.schedule['2026-09-01'].morning = null;
   await sync(server, state, data);
   await sync(server, state);
-  const restored = [...server.db.values()].find(e => e.summary?.startsWith('［朝昼］')).id;
+  const restored = [...server.db.values()].find(e => e.summary?.startsWith('☀️')).id;
   assert.notEqual(original, restored);
   assert.match(restored, /^[a-v0-9]{5,1024}$/);
 });
@@ -105,6 +132,27 @@ test('failed replacement does not delete obsolete events; same device can resume
   const result = await sync(server, state, data);
   assert.equal(result.removed, 1);
   assert.equal(result.created, 1);
+});
+test('a stale interrupted sync can be conditionally taken over by the device holding the latest JSON', async () => {
+  const server = fakeApi(), state = initial();
+  await sync(server, state);
+  const data = snapshot();
+  delete data.schedule['2026-09-02'];
+  data.schedule['2026-09-03'] = { morning: { idx: 0, kind: 'clean', caseName: '案件A' }, wait: [] };
+  server.fail((path, opt) => opt.method === 'POST');
+  await assert.rejects(sync(server, state, data), /network/);
+  server.fail(null);
+  const imported = { ...state, deviceId: 'device-b', pendingRevision: '' };
+  await assert.rejects(sync(server, imported, data, {
+    takeover: true, now: () => new Date('2026-09-01T12:03:00Z')
+  }), error => error.code === 'DASHBOARD_SYNC_BUSY' && error.canTakeover === false);
+  const result = await sync(server, imported, data, {
+    takeover: true, now: () => new Date('2026-09-01T12:06:00Z')
+  });
+  assert.equal(result.created, 1);
+  assert.equal(result.removed, 1);
+  const marker = [...server.db.values()].find(event => event.extendedProperties?.private?.dashboardKey === 'status');
+  assert.equal(marker.extendedProperties.private.busy, '');
 });
 test('lost local acknowledgement recovers the committed remote revision', async () => {
   const server = fakeApi(), state = initial();

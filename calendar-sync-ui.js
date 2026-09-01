@@ -5,23 +5,54 @@
   const DEVICE_KEY = 'dashboardGoogleCalendarDevice';
   const SCOPES = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.calendarlist.readonly';
   const API_ROOT = 'https://www.googleapis.com/calendar/v3';
+  const BUILD = 'v60';
+  const CLIENT_COLORS = [
+    { backgroundColor: '#7986cb', colorId: '1' }, { backgroundColor: '#33b679', colorId: '2' },
+    { backgroundColor: '#8e24aa', colorId: '3' }, { backgroundColor: '#e67c73', colorId: '4' },
+    { backgroundColor: '#f6c026', colorId: '5' }, { backgroundColor: '#f5511d', colorId: '6' },
+    { backgroundColor: '#039be5', colorId: '7' }, { backgroundColor: '#616161', colorId: '8' },
+    { backgroundColor: '#3f51b5', colorId: '9' }, { backgroundColor: '#0b8043', colorId: '10' },
+    { backgroundColor: '#d60000', colorId: '11' }
+  ];
+  function colorFor(value) {
+    let hash = 2166136261;
+    for (const char of String(value || '')) { hash ^= char.codePointAt(0); hash = Math.imul(hash, 16777619); }
+    return CLIENT_COLORS[Math.abs(hash) % CLIENT_COLORS.length];
+  }
+  function validLabel(value) {
+    return value && typeof value === 'object' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.id || '') &&
+      /^#[0-9a-f]{6}$/i.test(value.backgroundColor || '') && /^\d{1,3}$/.test(value.colorId || '');
+  }
+  function cleanClientLabels(value) {
+    const result = Object.create(null);
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return result;
+    for (const [clientName, label] of Object.entries(value)) if (validLabel(label))
+      result[String(clientName).slice(0, 180)] = {
+        id: label.id, backgroundColor: label.backgroundColor, colorId: label.colorId
+      };
+    return result;
+  }
   function mount({ element, snapshot }) {
     if (!Core || !element) return null;
     let state;
     try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { state = {}; }
     let deviceId = localStorage.getItem(DEVICE_KEY);
     if (!deviceId) { deviceId = Core.uuid(); localStorage.setItem(DEVICE_KEY, deviceId); }
-    state = { sourceId: Core.uuid(), clientId: '', calendarId: '', revision: '', auto: true, ...state, deviceId };
+    state = { sourceId: Core.uuid(), clientId: '', calendarId: '', revision: '', auto: true, clientLabels: {}, ...state, deviceId };
+    state.clientLabels = cleanClientLabels(state.clientLabels);
     let token = '', expiresAt = 0, running = false, pending = false, timer, expiryTimer, preparing = false, staleDocument = false;
+    let customLabelsUnavailable = false;
     let scriptPromise;
     const listeners = [];
     element.innerHTML = `
       <h3>Googleカレンダーへ転記</h3>
-      <p class="gcal-note">制作予定を専用カレンダーへ送ります。案件名・工程・期日・返信待ちを転記します。</p>
+      <p class="gcal-note">制作予定を専用カレンダーへ送ります。案件名・工程・依頼詳細・期日・返信待ちを転記します。</p>
       <p class="gcal-note">接続中は変更を自動反映します。ページを閉じた後や認証期限切れの後は、再接続が必要です。</p>
       <div class="gcal-actions">
         <button type="button" class="reset-btn" data-action="connect">Googleに接続して転記</button>
         <button type="button" class="reset-btn" data-action="sync" disabled>今すぐ転記</button>
+        <button type="button" class="reset-btn" data-action="takeover" hidden disabled>中断した転記をこの端末で引き継ぐ</button>
         <button type="button" class="reset-btn" data-action="disconnect" disabled>接続を停止</button>
       </div>
       <label class="gcal-auto"><input type="checkbox" data-field="auto"> 接続中の変更を自動で転記</label>
@@ -37,6 +68,7 @@
     const q = selector => element.querySelector(selector);
     const connectButton = q('[data-action="connect"]');
     const syncButton = q('[data-action="sync"]');
+    const takeoverButton = q('[data-action="takeover"]');
     const disconnectButton = q('[data-action="disconnect"]');
     function setStatus(message, error = false) {
       q('.gcal-status').textContent = message;
@@ -51,6 +83,7 @@
     function authorized() { return !!token && Date.now() < expiresAt; }
     function refresh() {
       syncButton.disabled = !authorized() || running;
+      takeoverButton.disabled = !authorized() || running;
       connectButton.disabled = running || preparing;
       disconnectButton.disabled = !token || running;
       q('[data-action="save"]').disabled = running;
@@ -88,6 +121,33 @@
       catch (error) { setStatus(error.message, true); }
       finally { preparing = false; refresh(); }
     }
+    function operationName(path, method, body) {
+      if (path.includes('/calendarList')) return '専用カレンダーの確認';
+      if (path === '/calendars' && method === 'POST') return '専用カレンダーの作成';
+      if (/^\/calendars\/[^/]+$/.test(path.split('?')[0])) return method === 'PUT' ? 'クライアント色の更新' : 'クライアント色の確認';
+      if (method === 'GET') return '転記済み予定の確認';
+      const key = body?.extendedProperties?.private?.dashboardKey;
+      if (key === 'status') return method === 'POST' ? '同期状態の作成' : '同期状態の更新';
+      if (method === 'POST') return '予定の追加';
+      if (method === 'PATCH') return '予定の更新';
+      if (method === 'DELETE') return '古い予定の削除';
+      return 'Googleカレンダーとの通信';
+    }
+    function formatError(error) {
+      const diagnostics = [];
+      if (error.operation) diagnostics.push('処理：' + error.operation);
+      if (error.status) diagnostics.push('Google ' + error.status);
+      if (error.reason) diagnostics.push(String(error.reason).slice(0, 80));
+      if (error.googleMessage && error.googleMessage !== error.message)
+        diagnostics.push(String(error.googleMessage).replace(/[\r\n]+/g, ' ').slice(0, 180));
+      diagnostics.push('アプリ：' + BUILD);
+      return error.message + (diagnostics.length ? '\n詳細：' + diagnostics.join('／') : '');
+    }
+    function retryable(error) {
+      return ['TimeoutError', 'TypeError'].includes(error.name) || error.status === 429 ||
+        (Number(error.status) >= 500 && Number(error.status) <= 599);
+    }
+    function wait(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
     async function api(path, options = {}) {
       if (staleDocument) throw new Error('別のタブでデータが更新されました。ページを再読み込みしてください。');
       if (!authorized()) {
@@ -95,25 +155,40 @@
         throw new Error('再接続が必要です。');
       }
       const method = options.method || 'GET';
+      const operation = operationName(path, method, options.body);
       const headers = { Authorization: 'Bearer ' + token };
       if (options.body) headers['Content-Type'] = 'application/json';
       if (options.etag) headers['If-Match'] = options.etag;
-      const response = await fetch(API_ROOT + path, { method, headers,
-        body: options.body ? JSON.stringify(options.body) : undefined, signal: AbortSignal.timeout(30000) });
+      let response;
+      try {
+        response = await fetch(API_ROOT + path, { method, headers,
+          body: options.body ? JSON.stringify(options.body) : undefined, signal: AbortSignal.timeout(30000) });
+      } catch (error) {
+        error.operation = operation;
+        throw error;
+      }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         if (response.status === 401) disconnect('Googleの認証が切れました。再接続してください。');
         const messages = {
+          400: 'Googleへ送る予定の内容を確認できませんでした。',
           401: 'Googleへ再接続してください。',
           403: 'Googleの権限またはAPI設定を確認してください。',
           404: '転記先が見つかりません。接続先アカウントと専用カレンダーを確認してください。',
           409: '別の処理が同時に転記しました。もう一度転記してください。',
           412: '別の端末または操作によって予定が更新されました。転記を中止しました。',
-          429: 'Googleの利用上限に達しました。少し待ってから転記してください。'
+          429: 'Googleが混み合っています。少し待ってから転記してください。',
+          500: 'Google側で一時的な問題が発生しました。',
+          502: 'Google側との通信が一時的に不安定です。',
+          503: 'Google側が一時的に利用できません。',
+          504: 'Google側からの応答に時間がかかっています。'
         };
         const error = new Error(messages[response.status] || 'Googleへの転記に失敗しました。もう一度転記してください。');
         error.status = response.status;
         error.reason = data.error?.errors?.[0]?.reason;
+        error.googleMessage = data.error?.message;
+        error.operation = operation;
+        error.retryAfter = Math.max(0, Number(response.headers.get('Retry-After')) || 0);
         throw error;
       }
       return response.status === 204 ? {} : response.json();
@@ -137,12 +212,92 @@
       state.calendarId = calendar.id;
       save();
     }
-    async function runSync() {
+    async function ensureClientStyles(current) {
+      const names = [...new Set(current.cases.map(item => String(item.name || '名称未設定').replace(/[\r\n]/g, ' ').slice(0, 180)))];
+      const previous = state.clientLabels || Object.create(null), next = Object.create(null);
+      for (const clientName of names) {
+        const stored = previous[clientName];
+        const color = colorFor(clientName);
+        next[clientName] = validLabel(stored)
+          ? { id: stored.id, backgroundColor: stored.backgroundColor, colorId: stored.colorId }
+          : { id: crypto.randomUUID(), backgroundColor: color.backgroundColor, colorId: color.colorId };
+      }
+      state.clientLabels = next;
+      for (const item of current.cases) {
+        const style = next[String(item.name || '名称未設定').replace(/[\r\n]/g, ' ').slice(0, 180)];
+        item.calendarColorId = style?.colorId || '';
+        item.calendarLabelId = '';
+      }
+      if (!names.length || customLabelsUnavailable) { save(); return 'standard'; }
+      try {
+        const path = '/calendars/' + encodeURIComponent(state.calendarId);
+        const calendar = await api(path);
+        const existing = calendar.labelProperties?.eventLabels || [];
+        const managedIds = new Set(Object.values(previous).filter(validLabel).map(label => label.id));
+        const preserved = existing.filter(label => !managedIds.has(label.id));
+        const managed = names.map(clientName => ({
+          id: next[clientName].id, backgroundColor: next[clientName].backgroundColor, name: clientName
+        }));
+        if (preserved.length + managed.length > 200) throw Object.assign(new Error('Googleのカラーラベル数が上限に達しています。'), { status: 400 });
+        const labels = [...preserved, ...managed];
+        const comparableExisting = existing.map(label => ({
+          id: label.id, backgroundColor: label.backgroundColor, name: label.name
+        }));
+        if (JSON.stringify(comparableExisting) !== JSON.stringify(labels)) {
+          const body = {
+            summary: calendar.summary || '制作予定（ダッシュボード）',
+            description: calendar.description || '', timeZone: calendar.timeZone || 'Asia/Tokyo',
+            labelProperties: { ...(calendar.labelProperties || {}), eventLabels: labels }
+          };
+          if (calendar.location) body.location = calendar.location;
+          if (calendar.conferenceProperties) body.conferenceProperties = calendar.conferenceProperties;
+          await api(path, { method: 'PUT', body, etag: calendar.etag });
+        }
+        for (const item of current.cases) {
+          const clientName = String(item.name || '名称未設定').replace(/[\r\n]/g, ' ').slice(0, 180);
+          item.calendarLabelId = next[clientName]?.id || '';
+        }
+        save();
+        return 'custom';
+      } catch (error) {
+        if (![400, 403].includes(error.status)) throw error;
+        customLabelsUnavailable = true;
+        save();
+        return 'standard';
+      }
+    }
+    async function transfer(current, takeover) {
+      let styleMode = 'standard';
+      let labelFallbackTried = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          await ensureCalendar();
+          styleMode = await ensureClientStyles(current);
+          const result = await Core.synchronize({ api, state, snapshot: current, save, takeover,
+            progress: (done, total) => setStatus('制作予定を転記しています… ' + done + ' / ' + total) });
+          return { ...result, styleMode };
+        } catch (error) {
+          if (error.status === 400 && !labelFallbackTried && current.cases.some(item => item.calendarLabelId)) {
+            labelFallbackTried = true;
+            customLabelsUnavailable = true;
+            setStatus('クライアント色をGoogleの標準色へ切り替えて再試行します…');
+            continue;
+          }
+          if (!retryable(error) || !navigator.onLine || attempt === 2) throw error;
+          const delay = Math.min(10000, error.retryAfter ? error.retryAfter * 1000 : [800, 2000][attempt]);
+          setStatus('Googleとの通信が一時的に不安定です。自動で再試行します…（' + (attempt + 2) + ' / 3）');
+          await wait(delay);
+        }
+      }
+    }
+    async function runSync(options = {}) {
+      const takeover = options?.takeover === true;
       if (running) { pending = true; return; }
       if (!authorized()) { setStatus('変更をGoogleへ送るには再接続してください。'); return; }
       // Web Locks also prevent concurrent mutations from another tab of this site.
       if (!navigator.locks) { setStatus('このブラウザでは安全に同期できません。最新のSafariまたはChromeを使用してください。', true); return; }
       running = true; refresh();
+      if (takeover) takeoverButton.hidden = true;
       let failed = false;
       try {
         await navigator.locks.request('ichilole-dashboard-google-calendar', { ifAvailable: true }, async lock => {
@@ -153,15 +308,19 @@
           const current = snapshot();
           Core.buildEvents(current); // Validate before creating the destination calendar.
           setStatus('制作予定を転記しています…');
-          await ensureCalendar();
-          const result = await Core.synchronize({ api, state, snapshot: current, save,
-            progress: (done, total) => setStatus('制作予定を転記しています… ' + done + ' / ' + total) });
+          const result = await transfer(current, takeover);
+          takeoverButton.hidden = true;
           setStatus('転記完了：' + result.count + '件（追加' + result.created + '・変更' + result.updated + '・削除' + result.removed + '）');
         });
       } catch (error) {
         failed = true;
         const networkError = ['TimeoutError', 'TypeError'].includes(error.name);
-        setStatus(networkError ? '通信を完了できませんでした。通信状況を確認し、もう一度転記してください。' : error.message, true);
+        if (networkError) error.message = '通信を完了できませんでした。通信状況を確認し、もう一度転記してください。';
+        if (error.code === 'DASHBOARD_SYNC_BUSY') {
+          takeoverButton.hidden = !error.canTakeover;
+          if (error.busySince) error.message += '\n中断日時：' + new Date(error.busySince).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '（日本時間）';
+        }
+        setStatus(formatError(error), true);
       } finally {
         running = false; refresh();
         if (pending && !failed) { pending = false; changed(); }
@@ -211,7 +370,11 @@
       }).requestAccessToken({ prompt: '' });
     }
     connectButton.addEventListener('click', connect);
-    syncButton.addEventListener('click', runSync);
+    syncButton.addEventListener('click', () => runSync());
+    takeoverButton.addEventListener('click', () => {
+      if (!confirm('この端末の現在のダッシュボードを正として、中断したGoogle転記を引き継ぎますか？\n専用カレンダー内の自動転記予定だけを更新します。')) return;
+      runSync({ takeover: true });
+    });
     disconnectButton.addEventListener('click', () => disconnect());
     q('[data-field="auto"]').addEventListener('change', event => { state.auto = event.target.checked; save(); if (state.auto) changed(); });
     q('[data-action="save"]').addEventListener('click', () => {
@@ -248,10 +411,12 @@
       importConfig(value) {
         if (running) throw new Error('転記中です。完了してからJSONを読み込んでください。');
         disconnect('JSONを読み込みました。Googleへ接続すると、この予定を転記します。');
+        takeoverButton.hidden = true;
         if (value && /^[a-f0-9]{32}$/.test(value.sourceId || '')) {
           const allowed = ['sourceId', 'clientId', 'calendarId', 'revision', 'lastSyncedAt', 'accountId'];
-          state = { sourceId: value.sourceId, auto: state.auto, deviceId };
+          state = { sourceId: value.sourceId, auto: state.auto, clientLabels: Object.create(null), deviceId };
           for (const key of allowed) if (typeof value[key] === 'string') state[key] = value[key];
+          state.clientLabels = cleanClientLabels(value.clientLabels);
         } else if (state.calendarId) {
           // Legacy backups carry no baseline. Never silently overwrite a newer cloud snapshot.
           state.revision = '';

@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="案件管理">
 <meta name="theme-color" content="#714944">
 
-<title>案件管理 v59</title>
+<title>案件管理 v60</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -295,7 +295,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 .gcal-actions{display:flex;flex-wrap:wrap;gap:8px;margin:.75rem 0}
 .gcal-actions button:disabled{opacity:.5;cursor:default}
 .gcal-auto{display:flex;align-items:center;gap:7px;font-size:13px}
-.gcal-status{font-size:13px;line-height:1.6;margin-top:.75rem;overflow-wrap:anywhere}
+.gcal-status{font-size:13px;line-height:1.6;margin-top:.75rem;overflow-wrap:anywhere;white-space:pre-wrap}
 .gcal-status[data-error="true"]{color:var(--rd)}
 .gcal-last{font-size:12px;color:var(--tx3);margin-top:.25rem}
 .gcal-setup{margin-top:1rem;font-size:13px}
@@ -644,8 +644,8 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 </div>
 </dialog>
 
-<script src="calendar-sync-core.js"></script>
-<script src="calendar-sync-ui.js"></script>
+<script src="calendar-sync-core.js?v=60"></script>
+<script src="calendar-sync-ui.js?v=60"></script>
 <script>
 let googleCalendarSync=null;
 function notifyCalendarChange(){googleCalendarSync?.changed();}
@@ -2456,7 +2456,7 @@ googleCalendarSync=window.DashboardCalendarUI?.mount({
   element:document.getElementById('google-calendar-settings'),
   snapshot:()=>({
     today:todayYmd(),
-    cases:cases.map(c=>({name:c.name,deadline:c.deadline,paydue:c.paydue,paid:c.paid})),
+    cases:cases.map(c=>({name:c.name,detail:c.detail,deadline:c.deadline,paydue:c.paydue,paid:c.paid})),
     schedule:buildScheduleMap()
   })
 });
