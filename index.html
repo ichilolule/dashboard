@@ -291,6 +291,17 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 /* トースト */
 .inv-toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#333;color:#fff;font-size:13px;padding:8px 18px;border-radius:20px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:9999;white-space:nowrap}
 .inv-toast.show{opacity:1}
+.gcal-note{font-size:12px;color:var(--tx3);line-height:1.6;margin:.5rem 0}
+.gcal-actions{display:flex;flex-wrap:wrap;gap:8px;margin:.75rem 0}
+.gcal-actions button:disabled{opacity:.5;cursor:default}
+.gcal-auto{display:flex;align-items:center;gap:7px;font-size:13px}
+.gcal-status{font-size:13px;line-height:1.6;margin-top:.75rem;overflow-wrap:anywhere}
+.gcal-status[data-error="true"]{color:var(--rd)}
+.gcal-last{font-size:12px;color:var(--tx3);margin-top:.25rem}
+.gcal-setup{margin-top:1rem;font-size:13px}
+.gcal-setup summary{cursor:pointer}
+.gcal-client{display:flex;flex-direction:column;gap:6px;margin:.5rem 0}
+.gcal-client input{width:100%;padding:8px;border:.5px solid var(--bd);border-radius:var(--rs);background:var(--bg2);color:var(--tx)}
 
 </style>
 </head>
@@ -299,7 +310,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 <div class="top-bar">
   <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理</span>
   <div style="display:flex;align-items:center;gap:8px">
-    <button class="sync-btn" onclick="exportBackup()" title="dashboard_sync.json を書き出す"><i class="ti ti-upload"></i> 同期</button>
+    <button class="sync-btn" onclick="exportBackup()" title="dashboard_sync.json を書き出す"><i class="ti ti-upload"></i> JSON保存</button>
     <button class="sync-btn" onclick="importBackup()" title="dashboard_sync.json を読み込む"><i class="ti ti-download"></i> 読み込み</button>
   </div>
 </div>
@@ -416,6 +427,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
       <div class="settings-row" style="align-items:flex-start"><label style="padding-top:6px">定休日（毎週固定）</label><div id="cfg-holidays" style="display:flex;gap:5px;flex-wrap:wrap;padding-top:3px"></div></div>
       <div class="settings-row"><label>返信待ち期間</label><input type="number" id="cfg-waitDays" onchange="saveCfg()" min="1" max="30"><span class="unit">日（カレンダーに表示）</span></div>
     </div>
+    <div class="settings-section" id="google-calendar-settings"></div>
     <button class="reset-btn" onclick="resetCfg()"><i class="ti ti-refresh"></i> 設定をデフォルトに戻す</button>
   </div>
 </div>
@@ -632,7 +644,11 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 </div>
 </dialog>
 
+<script src="calendar-sync-core.js"></script>
+<script src="calendar-sync-ui.js"></script>
 <script>
+let googleCalendarSync=null;
+function notifyCalendarChange(){googleCalendarSync?.changed();}
 // ===== DEFAULT SETTINGS =====
 const DEF_DRAW_ITEMS = [
   {id:'sd',label:'SDキャラクター（2〜3頭身）',coverage:'SDキャラクター',price:6000,hidden:false},
@@ -711,6 +727,7 @@ function saveCfgObject(c,opt={}){
   activeBusinessDay=todayYmd();
   updateInvSeqPreview();
   scheduleBusinessDayRefresh();
+  notifyCalendarChange();
   // カレンダーが表示中なら再描画
   if(document.getElementById('tp-cal').classList.contains('active'))renderCal();
   render();
@@ -793,7 +810,7 @@ function saveProfile(){
   };
   localStorage.setItem('profile',JSON.stringify(p));
 }
-function resetCfg(){if(!confirm('設定をデフォルトに戻しますか？'))return;localStorage.removeItem('cfg');loadSettingsUI();updateSettingsLabels();renderCharsEst();calcEst();activeBusinessDay=todayYmd();updateInvSeqPreview();scheduleBusinessDayRefresh();render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();}
+function resetCfg(){if(!confirm('設定をデフォルトに戻しますか？'))return;localStorage.removeItem('cfg');loadSettingsUI();updateSettingsLabels();renderCharsEst();calcEst();activeBusinessDay=todayYmd();updateInvSeqPreview();scheduleBusinessDayRefresh();render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();notifyCalendarChange();}
 function loadSettingsUI(){
   const c=getCfg();
   CFG_KEYS.forEach(k=>{const el=document.getElementById('cfg-'+k);if(el)el.value=c[k];});
@@ -887,7 +904,7 @@ const initialBusinessDate=getBusinessDate();
 calYear=initialBusinessDate.getFullYear();calMonth=initialBusinessDate.getMonth();
 
 
-function saveAll(){localStorage.setItem('cases',JSON.stringify(cases));localStorage.setItem('archive',JSON.stringify(archive));render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();}
+function saveAll(){localStorage.setItem('cases',JSON.stringify(cases));localStorage.setItem('archive',JSON.stringify(archive));render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();notifyCalendarChange();}
 // 値を配列に正規化（文字列/null/undefinedにも対応）
 function toArr(v){return Array.isArray(v)?v:(v?[v]:[]);}
 function dL(d){return d?daysBetween(todayYmd(),d):null;}
@@ -1764,6 +1781,7 @@ function refreshBusinessDay(){
     }
     render();
     updateInvSeqPreview();
+    notifyCalendarChange();
     if(document.getElementById('tp-cal').classList.contains('active'))renderCal();
   }
   scheduleBusinessDayRefresh();
@@ -1785,6 +1803,7 @@ function toggleHoliday(e,dateStr){
   if(sh[dateStr])delete sh[dateStr];else sh[dateStr]=true;
   localStorage.setItem('holidays',JSON.stringify(sh));
   renderCal();
+  notifyCalendarChange();
 }
 function isHoliday(dateStr,cfg){
   const sh=getSpotHolidays();
@@ -2102,6 +2121,7 @@ function deleteAllArchive(){
 
 // ===== BACKUP / IMPORT / EXPORT =====
 function exportBackup(){
+  if(googleCalendarSync?.isRunning()){alert('Googleへの転記完了後に、JSONを保存してください。');return;}
   // 月別の請求書番号カウンターをすべて収集
   const invseq={};
   for(let i=0;i<localStorage.length;i++){
@@ -2112,7 +2132,8 @@ function exportBackup(){
     exported:new Date().toISOString(),
     cases,archive,
     settings:getCfg(),profile:getProfile(),invseq,
-    spotHolidays:getSpotHolidays()
+    spotHolidays:getSpotHolidays(),
+    googleCalendar:googleCalendarSync?.exportConfig()
   };
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
@@ -2216,6 +2237,7 @@ function handleBackupFileSelect(e){
   reader.onload=ev=>{
     try{
       const data=JSON.parse(ev.target.result);
+      if(googleCalendarSync?.isRunning()){alert('Googleへの転記完了後に、JSONを読み込んでください。');return;}
       if(!data.cases&&!data.archive){alert('有効なバックアップファイルではありません。');return;}
       if(!confirm('現在のデータを上書きしてインポートしますか？\nこの操作は取り消せません。'))return;
       if(Array.isArray(data.cases))cases=data.cases.map(normalizeCase);
@@ -2234,6 +2256,7 @@ function handleBackupFileSelect(e){
       if(data.spotHolidays&&typeof data.spotHolidays==='object'){
         localStorage.setItem('holidays',JSON.stringify(data.spotHolidays));
       }
+      googleCalendarSync?.importConfig(data.googleCalendar);
       activeBusinessDay=todayYmd();
       scheduleBusinessDayRefresh();
       loadSettingsUI();updateSettingsLabels();
@@ -2429,6 +2452,14 @@ document.getElementById('arc-list').addEventListener('click',e=>{
 
 // 初回のファイル選択でchangeが落ちる環境への対策として、読み込み用inputを先に作って保持する
 getBackupImportInput();
+googleCalendarSync=window.DashboardCalendarUI?.mount({
+  element:document.getElementById('google-calendar-settings'),
+  snapshot:()=>({
+    today:todayYmd(),
+    cases:cases.map(c=>({name:c.name,deadline:c.deadline,paydue:c.paydue,paid:c.paid})),
+    schedule:buildScheduleMap()
+  })
+});
 </script>
 <!-- 請求書PDF印刷用（@media printのみ表示） -->
 <div id="pdf-invoice"></div>
