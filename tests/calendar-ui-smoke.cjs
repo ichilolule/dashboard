@@ -18,7 +18,12 @@ const root = path.resolve(__dirname, '..');
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   let browser;
-  try { browser = await chromium.launch({ headless: true }); }
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      executablePath: process.env.CALENDAR_CHROME_PATH || undefined
+    });
+  }
   catch (error) { server.close(); throw error; }
   try {
     const context = await browser.newContext({ viewport: { width: 1120, height: 900 } });
