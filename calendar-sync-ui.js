@@ -5,7 +5,7 @@
   const DEVICE_KEY = 'dashboardGoogleCalendarDevice';
   const SCOPES = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.calendarlist.readonly';
   const API_ROOT = 'https://www.googleapis.com/calendar/v3';
-  const BUILD = 'v61';
+  const BUILD = 'v63';
   const CLIENT_COLORS = [
     { backgroundColor: '#7986cb', colorId: '1' }, { backgroundColor: '#33b679', colorId: '2' },
     { backgroundColor: '#8e24aa', colorId: '3' }, { backgroundColor: '#e67c73', colorId: '4' },
@@ -33,7 +33,7 @@
       };
     return result;
   }
-  function mount({ element, snapshot }) {
+  function mount({ element, snapshot, shortcutButton }) {
     if (!Core || !element) return null;
     let state;
     try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { state = {}; }
@@ -70,6 +70,7 @@
     const syncButton = q('[data-action="sync"]');
     const takeoverButton = q('[data-action="takeover"]');
     const disconnectButton = q('[data-action="disconnect"]');
+    const shortcutLabel = shortcutButton?.querySelector('.gcal-shortcut-label');
     function setStatus(message, error = false) {
       q('.gcal-status').textContent = message;
       q('.gcal-status').dataset.error = String(error);
@@ -82,12 +83,21 @@
     }
     function authorized() { return !!token && Date.now() < expiresAt; }
     function refresh() {
-      syncButton.disabled = !authorized() || running;
-      takeoverButton.disabled = !authorized() || running;
+      const connected = authorized();
+      syncButton.disabled = !connected || running;
+      takeoverButton.disabled = !connected || running;
       connectButton.disabled = running || preparing;
       disconnectButton.disabled = !token || running;
       q('[data-action="save"]').disabled = running;
       q('[data-field="auto"]').checked = state.auto;
+      if (shortcutButton) {
+        const action = connected ? 'Googleカレンダーへ今すぐ転記' : 'Googleに接続してカレンダーへ転記';
+        shortcutButton.disabled = running || preparing;
+        shortcutButton.dataset.connected = String(connected);
+        shortcutButton.title = running ? 'Googleカレンダーへ転記しています' : action;
+        shortcutButton.setAttribute('aria-label', running ? 'Googleカレンダーへ転記中' : action);
+        if (shortcutLabel) shortcutLabel.textContent = running ? '転記中…' : 'Google転記';
+      }
       q('.gcal-last').textContent = state.lastSyncedAt
         ? '最終同期：' + new Date(state.lastSyncedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '（日本時間）'
         : 'まだGoogleへ転記していません。';
@@ -369,8 +379,10 @@
         error_callback: () => setStatus('接続画面を開けなかったか、接続がキャンセルされました。もう一度接続してください。', true)
       }).requestAccessToken({ prompt: '' });
     }
+    function useShortcut() { if (authorized()) runSync(); else connect(); }
     connectButton.addEventListener('click', connect);
     syncButton.addEventListener('click', () => runSync());
+    shortcutButton?.addEventListener('click', useShortcut);
     takeoverButton.addEventListener('click', () => {
       if (!confirm('この端末の現在のダッシュボードを正として、中断したGoogle転記を引き継ぎますか？\n専用カレンダー内の自動転記予定だけを更新します。')) return;
       runSync({ takeover: true });

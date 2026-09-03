@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="案件管理">
 <meta name="theme-color" content="#714944">
 
-<title>案件管理 v61</title>
+<title>案件管理 v63</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
 :root{
@@ -40,8 +40,16 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;background:var(--bg);color:var(--tx);padding:1.25rem;max-width:1200px;margin:0 auto}
 .top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;background:var(--tx2);padding:.75rem 1.1rem;border-radius:var(--r)}
 .top-bar h1{font-size:18px;font-weight:500;color:var(--bg)}
+.top-bar-actions{display:flex;align-items:center;gap:8px}
 .sync-btn{font-size:12px;padding:4px 10px;border-radius:var(--rs);border:.5px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:var(--bg);cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;transition:background .15s}
 .sync-btn:hover{background:rgba(255,255,255,.22)}
+.sync-btn:disabled{opacity:.65;cursor:default}
+.gcal-sync-dot{width:7px;height:7px;border-radius:50%;background:var(--am-bd);box-shadow:0 0 0 1px rgba(255,255,255,.2);flex:none}
+.sync-btn[data-connected="true"] .gcal-sync-dot{background:#6fbd98}
+@media(max-width:520px){
+  .top-bar{align-items:flex-start;flex-direction:column;gap:.6rem}
+  .top-bar-actions{width:100%;gap:6px;flex-wrap:wrap}
+}
 .alert-bar{border-radius:var(--rs);padding:.55rem 1rem;font-size:13px;display:none;margin-bottom:.4rem}
 .alert-bar.show{display:block}
 .a-amber{background:var(--am-bg);border:.5px solid var(--am-bd);color:var(--am)}
@@ -309,7 +317,8 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 <h2 class="sr-only">案件管理ダッシュボード</h2>
 <div class="top-bar">
   <span style="font-size:16px;font-weight:500;color:var(--bg);opacity:.8">案件管理</span>
-  <div style="display:flex;align-items:center;gap:8px">
+  <div class="top-bar-actions">
+    <button type="button" class="sync-btn" id="google-transfer-shortcut" data-connected="false" title="Googleに接続してカレンダーへ転記" aria-label="Googleに接続してカレンダーへ転記"><span class="gcal-sync-dot" aria-hidden="true"></span><span class="gcal-shortcut-label">Google転記</span></button>
     <button class="sync-btn" onclick="exportBackup()" title="dashboard_sync.json を書き出す"><i class="ti ti-upload"></i> JSON保存</button>
     <button class="sync-btn" onclick="importBackup()" title="dashboard_sync.json を読み込む"><i class="ti ti-download"></i> 読み込み</button>
   </div>
@@ -644,8 +653,8 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 </div>
 </dialog>
 
-<script src="calendar-sync-core.js?v=61"></script>
-<script src="calendar-sync-ui.js?v=61"></script>
+<script src="calendar-sync-core.js?v=63"></script>
+<script src="calendar-sync-ui.js?v=63"></script>
 <script>
 let googleCalendarSync=null;
 function notifyCalendarChange(){googleCalendarSync?.changed();}
@@ -2454,6 +2463,7 @@ document.getElementById('arc-list').addEventListener('click',e=>{
 getBackupImportInput();
 googleCalendarSync=window.DashboardCalendarUI?.mount({
   element:document.getElementById('google-calendar-settings'),
+  shortcutButton:document.getElementById('google-transfer-shortcut'),
   snapshot:()=>({
     today:todayYmd(),
     cases:cases.map(c=>({name:c.name,detail:c.detail,deadline:c.deadline,paydue:c.paydue,paid:c.paid})),

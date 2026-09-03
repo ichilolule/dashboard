@@ -62,7 +62,7 @@
           waitItems.length === 1 ? eventStyle(waitItems[0]) : {});
       }
     }
-    for (const [field, prefix] of [['deadline', '納期'], ['paydue', '支払期限']]) {
+    for (const [field, prefix, icon] of [['deadline', '納期', '🔴'], ['paydue', '支払期限', '🟡']]) {
       const dates = new Map();
       for (const item of snapshot.cases) {
         if (!item[field] || (field === 'paydue' && item.paid === '入金済み')) continue;
@@ -72,7 +72,7 @@
       }
       for (const [date, items] of [...dates].sort()) {
         const names = items.map(item => name(item.name));
-        add(field + ':' + date, date, '［' + prefix + '］' + names.join('／'),
+        add(field + ':' + date, date, icon + ' ' + names.join('／'),
           prefix + '：' + date + '\n' + names.join('\n'), items.length === 1 ? eventStyle(items[0]) : {});
       }
     }

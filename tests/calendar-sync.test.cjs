@@ -52,7 +52,12 @@ test('exports the displayed slots and grouped dates, with no billing or contact 
   assert.equal(morning.summary, '☀️ 案件A｜大ラフ');
   assert.match(morning.description, /工程：大ラフ\n納期：2026-09-04\n\n依頼詳細：\n青い衣装・笑顔/);
   assert.ok(!morning.description.includes('編集元') && !morning.description.includes('枠：'));
-  assert.match(events.find(e => e.summary.startsWith('［納期］')).description, /案件A\n案件B/);
+  const deadline = events.find(e => e.summary.startsWith('🔴'));
+  const paymentDue = events.find(e => e.summary.startsWith('🟡'));
+  assert.equal(deadline.summary, '🔴 案件A／案件B');
+  assert.match(deadline.description, /納期：2026-09-04\n案件A\n案件B/);
+  assert.equal(paymentDue.summary, '🟡 案件B');
+  assert.match(paymentDue.description, /支払期限：2026-09-02\n案件B/);
   const text = JSON.stringify(events);
   assert.ok(text.includes('https://example.test/reference'));
   for (const secret of ['do-not-export', '999999', 'internal-only', 'bank-secret']) assert.ok(!text.includes(secret));
@@ -111,6 +116,24 @@ test('repeated sync does not duplicate or rewrite unchanged work events', async 
   const second = await sync(server, state);
   assert.deepEqual(second, { count: 5, created: 0, updated: 0, removed: 0 });
   assert.equal(server.db.size, 6); // Five events and the freshness/status record.
+});
+test('replaces legacy deadline labels with emoji without duplicating events', async () => {
+  const server = fakeApi(), state = initial();
+  await sync(server, state);
+  for (const event of server.db.values()) {
+    if (event.summary?.startsWith('🔴 ')) event.summary = event.summary.replace('🔴 ', '［納期］');
+    if (event.summary?.startsWith('🟡 ')) event.summary = event.summary.replace('🟡 ', '［支払期限］');
+  }
+  const beforeSize = server.db.size;
+  const result = await sync(server, state);
+  assert.equal(result.created, 0);
+  assert.equal(result.updated, 2);
+  assert.equal(result.removed, 0);
+  assert.equal(server.db.size, beforeSize);
+  const summaries = [...server.db.values()].map(event => event.summary);
+  assert.ok(summaries.includes('🔴 案件A／案件B'));
+  assert.ok(summaries.includes('🟡 案件B'));
+  assert.ok(!summaries.some(summary => /^［(?:納期|支払期限)］/.test(summary || '')));
 });
 test('changes and deletion affect only this source; manual and unrelated events survive', async () => {
   const server = fakeApi(), state = initial();
