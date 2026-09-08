@@ -5,7 +5,7 @@
   const DEVICE_KEY = 'dashboardGoogleCalendarDevice';
   const SCOPES = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.calendarlist.readonly';
   const API_ROOT = 'https://www.googleapis.com/calendar/v3';
-  const BUILD = 'v64';
+  const BUILD = 'v65';
   const CLIENT_COLORS = [
     { backgroundColor: '#7986cb', colorId: '1' }, { backgroundColor: '#33b679', colorId: '2' },
     { backgroundColor: '#8e24aa', colorId: '3' }, { backgroundColor: '#e67c73', colorId: '4' },
@@ -385,7 +385,7 @@
     syncButton.addEventListener('click', () => runSync());
     shortcutButton?.addEventListener('click', useShortcut);
     takeoverButton.addEventListener('click', () => {
-      if (!confirm('この端末の現在のダッシュボードを正として、中断したGoogle転記を引き継ぎますか？\n専用カレンダー内の自動転記予定だけを更新します。')) return;
+      if (!confirm('この端末の現在のダッシュボードを正として、中断したGoogle転記を引き継ぎますか？\nSafariなど別端末でJSON保存前の変更がある場合、その変更はGoogle側から置き換わります。\n専用カレンダー内の自動転記予定だけを更新します。')) return;
       runSync({ takeover: true });
     });
     disconnectButton.addEventListener('click', () => disconnect());

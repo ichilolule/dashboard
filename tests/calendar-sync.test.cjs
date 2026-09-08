@@ -202,6 +202,29 @@ test('a stale interrupted sync can be conditionally taken over by the device hol
   const marker = [...server.db.values()].find(event => event.extendedProperties?.private?.dashboardKey === 'status');
   assert.equal(marker.extendedProperties.private.busy, '');
 });
+test('an explicitly confirmed stale takeover can recover when Google advanced after the saved JSON', async () => {
+  const server = fakeApi(), safari = initial();
+  await sync(server, safari);
+  const savedJson = { ...structuredClone(safari), deviceId: 'chrome-device', pendingRevision: '' };
+
+  const newer = snapshot();
+  newer.schedule['2026-09-01'].morning.kind = 'line';
+  await sync(server, safari, newer);
+
+  const interrupted = structuredClone(newer);
+  interrupted.schedule['2026-09-03'] = { morning: { idx: 0, kind: 'clean', caseName: '案件A' }, wait: [] };
+  server.fail((path, opt) => opt.method === 'POST');
+  await assert.rejects(sync(server, safari, interrupted), /network/);
+  server.fail(null);
+
+  const result = await sync(server, savedJson, snapshot(), {
+    takeover: true, now: () => new Date('2026-09-01T12:06:00Z')
+  });
+  assert.ok(result.updated > 0);
+  const marker = [...server.db.values()].find(event => event.extendedProperties?.private?.dashboardKey === 'status');
+  assert.equal(marker.extendedProperties.private.busy, '');
+  assert.equal(savedJson.revision, marker.extendedProperties.private.revision);
+});
 test('lost local acknowledgement recovers the committed remote revision', async () => {
   const server = fakeApi(), state = initial();
   let saves = 0, persisted;

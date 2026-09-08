@@ -168,8 +168,9 @@ const root = path.resolve(__dirname, '..');
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了') &&
       !document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('変更0'), { timeout: 15000 });
     assert.ok([...remote.values()].some(event => event.summary.includes('変更後の案件')));
-    // A stale lock from an installed Web App can be taken over by the latest imported snapshot.
+    // An explicitly confirmed stale lock can be taken over even when Google's revision advanced.
     const marker = [...remote.values()].find(event => event.extendedProperties?.private?.dashboardKey === 'status');
+    marker.extendedProperties.private.revision = 'b'.repeat(32);
     marker.extendedProperties.private.busy = 'installed-web-app-device';
     marker.extendedProperties.private.busySince = new Date(Date.now() - 10 * 60 * 1000).toISOString();
     marker.etag = 'e' + ++version;

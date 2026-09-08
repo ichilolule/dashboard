@@ -167,6 +167,7 @@
     const props = marker?.extendedProperties.private || {};
     const currentTime = now();
     const timestamp = currentTime.toISOString();
+    let confirmedTakeover = false;
     // Recover a successful remote commit whose local acknowledgement was interrupted.
     if (state.pendingRevision && props.revision === state.pendingRevision && !props.busy) {
       state.revision = props.revision;
@@ -185,9 +186,17 @@
         error.busySince = Number.isFinite(busyAt) ? new Date(busyAt).toISOString() : '';
         throw error;
       }
+      confirmedTakeover = true;
     }
-    if ((props.revision || '') !== (state.revision || ''))
-      throw new Error('Google側に、別の端末で更新した予定があります。最新のJSONを読み込んでから接続してください。');
+    if ((props.revision || '') !== (state.revision || '')) {
+      if (!confirmedTakeover)
+        throw new Error('Google側に、別の端末で更新した予定があります。最新のJSONを読み込んでから接続してください。');
+      // The user explicitly chose this dashboard as authoritative after a stale cross-device lock.
+      // Adopt the last committed remote revision, then reconcile only this source's managed events.
+      state.revision = props.revision || '';
+      state.pendingRevision = '';
+      save(state);
+    }
     const changes = diff(remote, desired, state.sourceId);
     const hash = await digest(JSON.stringify(desired));
     const revision = uuid();
