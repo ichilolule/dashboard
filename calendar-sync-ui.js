@@ -5,7 +5,7 @@
   const DEVICE_KEY = 'dashboardGoogleCalendarDevice';
   const SCOPES = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.calendarlist.readonly';
   const API_ROOT = 'https://www.googleapis.com/calendar/v3';
-  const BUILD = 'v63';
+  const BUILD = 'v64';
   const CLIENT_COLORS = [
     { backgroundColor: '#7986cb', colorId: '1' }, { backgroundColor: '#33b679', colorId: '2' },
     { backgroundColor: '#8e24aa', colorId: '3' }, { backgroundColor: '#e67c73', colorId: '4' },
@@ -33,7 +33,7 @@
       };
     return result;
   }
-  function mount({ element, snapshot, shortcutButton }) {
+  function mount({ element, snapshot, shortcutButton, onSynced }) {
     if (!Core || !element) return null;
     let state;
     try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { state = {}; }
@@ -321,6 +321,7 @@
           const result = await transfer(current, takeover);
           takeoverButton.hidden = true;
           setStatus('転記完了：' + result.count + '件（追加' + result.created + '・変更' + result.updated + '・削除' + result.removed + '）');
+          try { onSynced?.(result); } catch (_) {}
         });
       } catch (error) {
         failed = true;
