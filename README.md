@@ -27,7 +27,14 @@ node tests/calendar-ui-smoke.cjs
 
 Google連携の初回設定と実機確認は `CALENDAR_SYNC.md` を参照してください。
 
-Chromeでは、設定タブの「iCloud DriveへJSON保存」から初回だけ `dashboard_sync.json` の保存先を選べます。以後は変更時とGoogleカレンダー転記成功後に同じ正本へ自動上書きします。別端末などによる外部更新を検知した場合は上書きを止めるため、画面の案内に従ってiCloud側を読み込むか保存先を再設定してください。
+Chromeでは、設定タブで次の2つの保存先を別々に選べます。
+
+- 「iCloud DriveへJSON保存」：復元用の完全バックアップ `dashboard_sync.json`
+- 「Google DriveへAI参照用JSON保存」：AIが読む案件専用ファイル `dashboard_cases.json`
+
+以後は案件変更時に両方へ独立して自動上書きします。`dashboard_cases.json` には案件・連絡先・内部メモ・料金を含みますが、プロフィール、住所、口座情報、料金設定、Google認証情報は含みません。AIへ案件の確認を依頼するときは、接続済みのGoogle Driveにあるこの固定名のファイルを参照させてください。
+
+別端末などによる外部更新を検知した保存先だけ自動保存を停止します。完全バックアップは画面の案内に従ってiCloud側を読み込むか保存先を再設定し、AI参照用ファイルはGoogle Drive側の保存先を再設定してください。
 
 ## 認証
 

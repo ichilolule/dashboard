@@ -443,6 +443,7 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
       <div class="settings-row"><label>返信待ち期間</label><input type="number" id="cfg-waitDays" onchange="saveCfg()" min="1" max="30"><span class="unit">日（カレンダーに表示）</span></div>
     </div>
     <div class="settings-section" id="icloud-backup-settings"></div>
+    <div class="settings-section" id="google-drive-ai-settings"></div>
     <div class="settings-section" id="google-calendar-settings"></div>
     <button class="reset-btn" onclick="resetCfg()"><i class="ti ti-refresh"></i> 設定をデフォルトに戻す</button>
   </div>
@@ -662,11 +663,12 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 
 <script src="calendar-sync-core.js?v=65"></script>
 <script src="calendar-sync-ui.js?v=66"></script>
-<script src="backup-file-sync.js?v=1"></script>
+<script src="backup-file-sync.js?v=2"></script>
 <script>
 let googleCalendarSync=null;
 let dashboardBackupSync=null;
-function notifyBackupChange(){dashboardBackupSync?.changed();}
+let dashboardAiSync=null;
+function notifyBackupChange(){dashboardBackupSync?.changed();dashboardAiSync?.changed();}
 function notifyCalendarChange(){googleCalendarSync?.changed();notifyBackupChange();}
 // ===== DEFAULT SETTINGS =====
 const DEF_DRAW_ITEMS = [
@@ -896,8 +898,10 @@ let cases=[],archive=[];
 try{cases=JSON.parse(localStorage.getItem('cases')||'[]');}catch(e){}
 try{archive=JSON.parse(localStorage.getItem('archive')||'[]');}catch(e){}
 // 古い保存データを現在のステータス・工程へ寄せる
+function makeCaseId(){return'case_'+(globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+'_'+Math.random().toString(36).slice(2));}
 function normalizeCase(c){
   if(!c||typeof c!=='object')return c;
+  if(!c.id)c.id=makeCaseId();
   const legacy=(parseInt(c.revFree)||0)+(parseInt(c.revPaid)||0);
   const unified=c.revisionCount!==undefined?(parseInt(c.revisionCount)||0):legacy;
   c.revisionCount=String(Math.max(0,unified));
@@ -909,8 +913,10 @@ function normalizeCase(c){
   if(!['1','2','3','4','5'].includes(c.step))c.step='1';
   return c;
 }
+const caseIdsMigrated=[...cases,...archive].some(c=>c&&typeof c==='object'&&!c.id);
 cases=cases.map(normalizeCase);
 archive=archive.map(normalizeCase);
+if(caseIdsMigrated){localStorage.setItem('cases',JSON.stringify(cases));localStorage.setItem('archive',JSON.stringify(archive));}
 let editIdx=null,editIsArchive=false,emailCaseIdx=null,emailType=null,emailLang='ja',declineVariant='soft',sortMode='deadline',backupImportInput=null;
 let calYear,calMonth;
 function getBusinessDayStartHour(){return clampHour(getCfg().businessDayStartHour);}
@@ -1346,6 +1352,7 @@ function saveCase(){
   const c=collectCaseFormData(isNew?{}:(editIsArchive?archive[editIdx]:cases[editIdx]));
   // 新規案件作成時に請求書番号を採番して固定
   if(isNew){
+    c.id=makeCaseId();
     c.invNum=getNextInvNum();
     cases.push(c);
     updateInvSeqPreview();
@@ -2178,12 +2185,46 @@ function buildBackupData(){
     googleCalendar:googleCalendarSync?.exportConfig()
   };
 }
+const AI_CASE_FIELDS=['id','name','contact','received','deadline','paydue','isCompany','status','detail','price','payment','paid','paidDate','step','revisionCount','memo','format','portfolio','coverage','usage','bg','chara','estimateData','invNum'];
+function buildAiCase(source){
+  const out={};
+  AI_CASE_FIELDS.forEach(key=>{if(source[key]!==undefined)out[key]=source[key];});
+  return out;
+}
+function buildAiCasesData(){
+  return{
+    kind:'illustration-dashboard-cases',
+    schemaVersion:1,
+    updatedAt:new Date().toISOString(),
+    timezone:'Asia/Tokyo',
+    cases:cases.map(buildAiCase),
+    archive:archive.map(buildAiCase)
+  };
+}
+function parseAiCasesData(text){
+  const data=JSON.parse(text);
+  if(!data||data.kind!=='illustration-dashboard-cases'||!Array.isArray(data.cases)||!Array.isArray(data.archive))
+    throw new SyntaxError('AI参照用の案件JSONではありません。');
+  return data;
+}
+function comparableAiCasesData(data){
+  const copy=JSON.parse(JSON.stringify(data));
+  delete copy.updatedAt;
+  return JSON.stringify(copy);
+}
 function downloadBackup(){
   if(googleCalendarSync?.isRunning()){alert('Googleへの転記完了後に、JSONを保存してください。');return;}
   const blob=new Blob([JSON.stringify(buildBackupData(),null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
   a.download='dashboard_sync.json';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+function downloadAiCases(){
+  const blob=new Blob([JSON.stringify(buildAiCasesData(),null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;
+  a.download='dashboard_cases.json';
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
 }
 function exportBackup(){
@@ -2249,7 +2290,13 @@ function applyImportJson(){
     return;
   }
   // 既存案件に追加
-  cases=cases.concat(newCases.map(normalizeCase));
+  const usedIds=new Set([...cases,...archive].map(c=>c?.id).filter(Boolean));
+  cases=cases.concat(newCases.map(item=>{
+    const normalized=normalizeCase(item);
+    if(usedIds.has(normalized.id))normalized.id=makeCaseId();
+    usedIds.add(normalized.id);
+    return normalized;
+  }));
   saveAll();
   closeImportOv();
   // 成功通知（インボイストーストを流用）
@@ -2516,6 +2563,30 @@ dashboardBackupSync=window.DashboardBackupFile?.mount({
   download:downloadBackup,
   importText:applyBackupText,
   isBusy:()=>googleCalendarSync?.isRunning()
+});
+dashboardAiSync=window.DashboardBackupFile?.mount({
+  element:document.getElementById('google-drive-ai-settings'),
+  snapshot:buildAiCasesData,
+  download:downloadAiCases,
+  fileName:'dashboard_cases.json',
+  recordId:'google-drive-ai-json',
+  settingsKey:'dashboardGoogleDriveAi',
+  pickerId:'ichilole-dashboard-google-drive-ai-json',
+  lockName:'ichilole-dashboard-google-drive-ai-json',
+  validate:parseAiCasesData,
+  comparable:comparableAiCasesData,
+  syncOnReady:true,
+  ui:{
+    heading:'Google DriveへAI参照用JSON保存',
+    intro:'Chromeの保存画面でGoogle Drive内の <strong>dashboard_cases.json</strong> を一度選ぶと、案件変更時に同じファイルへ自動で上書きします。',
+    note:'案件・依頼主の連絡先・内部メモ・料金を含みます。ご自身のプロフィール、住所、口座情報、料金設定、Google認証情報は含みません。非公開フォルダを選んでください。',
+    chooseLabel:'Google Drive保存先を設定',
+    sideLabel:'Google Drive側',
+    destinationLabel:'Google Drive',
+    emptyLast:'まだGoogle Drive用のAI参照ファイルへ保存していません。',
+    initialStatus:'最初にGoogle Drive内の保存先を設定してください。',
+    fileDescription:'AI参照用の案件JSON'
+  }
 });
 googleCalendarSync=window.DashboardCalendarUI?.mount({
   element:document.getElementById('google-calendar-settings'),
