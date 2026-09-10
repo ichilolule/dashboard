@@ -5,7 +5,7 @@
   const DEVICE_KEY = 'dashboardGoogleCalendarDevice';
   const SCOPES = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.calendarlist.readonly';
   const API_ROOT = 'https://www.googleapis.com/calendar/v3';
-  const BUILD = 'v65';
+  const BUILD = 'v66';
   const CLIENT_COLORS = [
     { backgroundColor: '#7986cb', colorId: '1' }, { backgroundColor: '#33b679', colorId: '2' },
     { backgroundColor: '#8e24aa', colorId: '3' }, { backgroundColor: '#e67c73', colorId: '4' },
@@ -42,20 +42,21 @@
     state = { sourceId: Core.uuid(), clientId: '', calendarId: '', revision: '', auto: true, clientLabels: {}, ...state, deviceId };
     state.clientLabels = cleanClientLabels(state.clientLabels);
     let token = '', expiresAt = 0, running = false, pending = false, timer, expiryTimer, preparing = false, staleDocument = false;
+    let connecting = false, unsyncedChanges = false, automaticConnectAttempted = false, userChangeGesture = false;
     let customLabelsUnavailable = false;
     let scriptPromise;
     const listeners = [];
     element.innerHTML = `
       <h3>Googleカレンダーへ転記</h3>
       <p class="gcal-note">制作予定を専用カレンダーへ送ります。案件名・工程・依頼詳細・期日・返信待ちを転記します。</p>
-      <p class="gcal-note">接続中は変更を自動反映します。ページを閉じた後や認証期限切れの後は、再接続が必要です。</p>
+      <p class="gcal-note">変更時は自動反映します。接続が切れている場合も、次の編集操作でGoogleへの再接続を試みます。</p>
       <div class="gcal-actions">
         <button type="button" class="reset-btn" data-action="connect">Googleに接続して転記</button>
         <button type="button" class="reset-btn" data-action="sync" disabled>今すぐ転記</button>
         <button type="button" class="reset-btn" data-action="takeover" hidden disabled>中断した転記をこの端末で引き継ぐ</button>
         <button type="button" class="reset-btn" data-action="disconnect" disabled>接続を停止</button>
       </div>
-      <label class="gcal-auto"><input type="checkbox" data-field="auto"> 接続中の変更を自動で転記</label>
+      <label class="gcal-auto"><input type="checkbox" data-field="auto"> 変更時にGoogleへ自動接続して転記</label>
       <p class="gcal-status" role="status" aria-live="polite"></p>
       <p class="gcal-last"></p>
       <details class="gcal-setup">
@@ -84,26 +85,30 @@
     function authorized() { return !!token && Date.now() < expiresAt; }
     function refresh() {
       const connected = authorized();
-      syncButton.disabled = !connected || running;
-      takeoverButton.disabled = !connected || running;
-      connectButton.disabled = running || preparing;
-      disconnectButton.disabled = !token || running;
-      q('[data-action="save"]').disabled = running;
+      syncButton.disabled = !connected || running || connecting;
+      takeoverButton.disabled = !connected || running || connecting;
+      connectButton.disabled = running || preparing || connecting;
+      disconnectButton.disabled = !token || running || connecting;
+      q('[data-action="save"]').disabled = running || connecting;
       q('[data-field="auto"]').checked = state.auto;
       if (shortcutButton) {
-        const action = connected ? 'Googleカレンダーへ今すぐ転記' : 'Googleに接続してカレンダーへ転記';
-        shortcutButton.disabled = running || preparing;
+        const action = connected ? 'Googleカレンダーへ今すぐ転記' : unsyncedChanges
+          ? '未転記の変更があります。Googleへ接続して転記' : 'Googleに接続してカレンダーへ転記';
+        shortcutButton.disabled = running || preparing || connecting;
         shortcutButton.dataset.connected = String(connected);
-        shortcutButton.title = running ? 'Googleカレンダーへ転記しています' : action;
-        shortcutButton.setAttribute('aria-label', running ? 'Googleカレンダーへ転記中' : action);
-        if (shortcutLabel) shortcutLabel.textContent = running ? '転記中…' : 'Google転記';
+        shortcutButton.dataset.pending = String(unsyncedChanges);
+        shortcutButton.title = running ? 'Googleカレンダーへ転記しています' : connecting ? 'Googleへ再接続しています' : action;
+        shortcutButton.setAttribute('aria-label', running ? 'Googleカレンダーへ転記中' : connecting ? 'Googleへ再接続中' : action);
+        if (shortcutLabel) shortcutLabel.textContent = running ? '転記中…' : connecting ? '接続中…' : unsyncedChanges ? '未転記' : 'Google転記';
       }
       q('.gcal-last').textContent = state.lastSyncedAt
         ? '最終同期：' + new Date(state.lastSyncedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '（日本時間）'
         : 'まだGoogleへ転記していません。';
     }
-    function disconnect(message = '接続を停止しました。Googleに転記済みの予定は残っています。') {
+    function disconnect(message = '接続を停止しました。Googleに転記済みの予定は残っています。', options = {}) {
       token = ''; expiresAt = 0;
+      connecting = false;
+      automaticConnectAttempted = options.allowAutoReconnect === false;
       clearTimeout(expiryTimer); clearTimeout(timer);
       setStatus(message);
     }
@@ -127,7 +132,9 @@
         return;
       }
       preparing = true; refresh();
-      try { await loadGoogle(); setStatus('接続ボタンからGoogleへ転記できます。'); }
+      try { await loadGoogle(); setStatus(unsyncedChanges
+        ? '未転記の変更があります。次の編集操作でGoogleへの再接続を試みます。'
+        : '接続ボタンからGoogleへ転記できます。'); }
       catch (error) { setStatus(error.message, true); }
       finally { preparing = false; refresh(); }
     }
@@ -306,6 +313,8 @@
       if (!authorized()) { setStatus('変更をGoogleへ送るには再接続してください。'); return; }
       // Web Locks also prevent concurrent mutations from another tab of this site.
       if (!navigator.locks) { setStatus('このブラウザでは安全に同期できません。最新のSafariまたはChromeを使用してください。', true); return; }
+      const includedUnsyncedChanges = unsyncedChanges;
+      unsyncedChanges = false;
       running = true; refresh();
       if (takeover) takeoverButton.hidden = true;
       let failed = false;
@@ -325,6 +334,7 @@
         });
       } catch (error) {
         failed = true;
+        unsyncedChanges = unsyncedChanges || includedUnsyncedChanges;
         const networkError = ['TimeoutError', 'TypeError'].includes(error.name);
         if (networkError) error.message = '通信を完了できませんでした。通信状況を確認し、もう一度転記してください。';
         if (error.code === 'DASHBOARD_SYNC_BUSY') {
@@ -338,28 +348,55 @@
         else pending = false;
       }
     }
-    function changed() {
+    function changed(options = {}) {
       clearTimeout(timer);
-      if (!state.auto) return;
+      const markDirty = options?.markDirty !== false;
+      if (markDirty) unsyncedChanges = true;
+      refresh();
+      if (!unsyncedChanges) return;
+      if (!state.auto) {
+        setStatus('未転記の変更があります。「今すぐ転記」からGoogleへ反映してください。');
+        return;
+      }
       if (running) { pending = true; return; }
+      if (token && !authorized()) disconnect('認証期限が切れました。次の編集操作で再接続します。');
       if (!authorized()) {
-        if (state.calendarId) setStatus('未転記の変更があります。Googleへ接続して反映してください。');
+        if (!state.clientId) {
+          setStatus('未転記の変更があります。Google連携の初回設定を完了してください。');
+          return;
+        }
+        setStatus('未転記の変更があります。次の編集操作でGoogleへの再接続を試みます。');
+        const userGesture = options?.userInitiated === true || userChangeGesture;
+        if (!userGesture || automaticConnectAttempted || connecting || preparing) return;
+        if (!root.google?.accounts?.oauth2) { prepare(); return; }
+        connect({ automatic: true });
         return;
       }
       timer = setTimeout(runSync, 2000);
     }
-    function connect() {
+    function connect(options = {}) {
+      const automatic = options?.automatic === true;
+      if (connecting) return;
       if (staleDocument) { setStatus('別のタブでデータが更新されました。ページを再読み込みしてください。', true); return; }
       if (!state.clientId || !root.google?.accounts?.oauth2) { prepare(); return; }
       if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
         setStatus('Google連携は公開済みのダッシュボードURLから使用してください。', true); return;
       }
-      root.google.accounts.oauth2.initTokenClient({
+      connecting = true;
+      automaticConnectAttempted = true;
+      setStatus(automatic ? '未転記の変更を送るためGoogleへ再接続しています…' : 'Googleへ接続しています…');
+      const config = {
         client_id: state.clientId, scope: SCOPES, include_granted_scopes: false,
         callback: async response => {
-          if (response.error || !response.access_token) { setStatus('Googleへの接続が許可されませんでした。', true); return; }
+          if (response.error || !response.access_token) {
+            connecting = false;
+            setStatus('Googleへの接続が許可されませんでした。未転記の変更は残っています。', true);
+            return;
+          }
           if (!root.google.accounts.oauth2.hasGrantedAllScopes(response, ...SCOPES.split(' '))) {
-            setStatus('制作予定の転記に必要な権限を許可してください。', true); return;
+            connecting = false;
+            setStatus('制作予定の転記に必要な権限を許可してください。未転記の変更は残っています。', true);
+            return;
           }
           token = response.access_token;
           expiresAt = Date.now() + Math.max(0, Number(response.expires_in || 0) - 30) * 1000;
@@ -373,23 +410,34 @@
             if (typeof profile.sub !== 'string' || !profile.sub) throw new Error('Googleアカウントを確認できませんでした。');
             if (state.accountId && state.accountId !== profile.sub) throw new Error('以前と異なるGoogleアカウントです。元のアカウントへ接続してください。');
             state.accountId = profile.sub;
+            automaticConnectAttempted = false;
+            connecting = false;
             save();
             runSync();
-          } catch (error) { disconnect(error.message); }
+          } catch (error) { disconnect(error.message, { allowAutoReconnect: false }); }
         },
-        error_callback: () => setStatus('接続画面を開けなかったか、接続がキャンセルされました。もう一度接続してください。', true)
-      }).requestAccessToken({ prompt: '' });
+        error_callback: () => {
+          connecting = false;
+          setStatus('接続画面を開けなかったか、接続がキャンセルされました。未転記の変更は残っています。', true);
+        }
+      };
+      if (state.accountId) config.login_hint = state.accountId;
+      try { root.google.accounts.oauth2.initTokenClient(config).requestAccessToken({ prompt: '' }); }
+      catch (_) {
+        connecting = false;
+        setStatus('Googleへの接続画面を開けませんでした。上部の「未転記」から再接続してください。', true);
+      }
     }
     function useShortcut() { if (authorized()) runSync(); else connect(); }
-    connectButton.addEventListener('click', connect);
+    connectButton.addEventListener('click', () => connect());
     syncButton.addEventListener('click', () => runSync());
     shortcutButton?.addEventListener('click', useShortcut);
     takeoverButton.addEventListener('click', () => {
       if (!confirm('この端末の現在のダッシュボードを正として、中断したGoogle転記を引き継ぎますか？\nSafariなど別端末でJSON保存前の変更がある場合、その変更はGoogle側から置き換わります。\n専用カレンダー内の自動転記予定だけを更新します。')) return;
       runSync({ takeover: true });
     });
-    disconnectButton.addEventListener('click', () => disconnect());
-    q('[data-field="auto"]').addEventListener('change', event => { state.auto = event.target.checked; save(); if (state.auto) changed(); });
+    disconnectButton.addEventListener('click', () => disconnect(undefined, { allowAutoReconnect: false }));
+    q('[data-field="auto"]').addEventListener('change', event => { state.auto = event.target.checked; save(); if (state.auto) changed({ markDirty: false }); });
     q('[data-action="save"]').addEventListener('click', () => {
       const clientId = q('[data-field="client"]').value.trim();
       if (!/^[A-Za-z0-9_-]+\.apps\.googleusercontent\.com$/.test(clientId)) {
@@ -401,7 +449,19 @@
       state.clientId = clientId; save(); prepare();
     });
     function on(target, event, callback) { target.addEventListener(event, callback); listeners.push([target, event, callback]); }
-    on(root, 'online', changed);
+    function rememberUserChangeGesture(event) {
+      if (!event.isTrusted) return;
+      userChangeGesture = true;
+      setTimeout(() => { userChangeGesture = false; }, 0);
+    }
+    document.addEventListener('click', rememberUserChangeGesture, true);
+    document.addEventListener('change', rememberUserChangeGesture, true);
+    on(root, 'online', () => changed({ markDirty: false }));
+    on(root, 'beforeunload', event => {
+      if ((!unsyncedChanges && !running && !connecting) || !state.clientId) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
     on(root, 'storage', event => {
       let dataChanged = ['cases', 'cfg', 'holidays'].includes(event.key);
       if (event.key === KEY) {

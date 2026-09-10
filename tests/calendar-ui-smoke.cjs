@@ -47,7 +47,11 @@ const root = path.resolve(__dirname, '..');
     await context.route('https://accounts.google.com/gsi/client', route => route.fulfill({
       contentType: 'application/javascript', body: `window.google={accounts:{oauth2:{
         hasGrantedAllScopes:()=>true,
-        initTokenClient:(options)=>({requestAccessToken:()=>options.callback({access_token:'mock-token',expires_in:3600})})
+        initTokenClient:(options)=>{window.__lastTokenConfig=options;return{requestAccessToken:()=>{
+          window.__tokenRequestCount=(window.__tokenRequestCount||0)+1;
+          if(window.__tokenMode==='cancel')return options.error_callback({type:'popup_closed'});
+          options.callback({access_token:'mock-token',expires_in:3600});
+        }}}
       }}};`
     }));
     await context.route('https://www.googleapis.com/**', async route => {
@@ -137,7 +141,8 @@ const root = path.resolve(__dirname, '..');
     await shortcut.click();
     await page.waitForFunction(() => document.querySelector('.gcal-shortcut-label').textContent === '転記中…');
     assert.equal(await shortcut.isEnabled(), false);
-    await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了'));
+    await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了') &&
+      document.querySelector('.gcal-shortcut-label').textContent === 'Google転記');
     assert.equal(await shortcut.locator('.gcal-shortcut-label').innerText(), 'Google転記');
     assert.equal(await shortcut.getAttribute('data-connected'), 'true');
     assert.equal(await shortcut.locator('.gcal-sync-dot').evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(111, 189, 152)');
@@ -168,7 +173,35 @@ const root = path.resolve(__dirname, '..');
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了') &&
       !document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('変更0'), { timeout: 15000 });
     assert.ok([...remote.values()].some(event => event.summary.includes('変更後の案件')));
+    // After a page restart, a background change remains pending. The next real edit reconnects and transfers it.
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('接続ボタン'));
+    await page.evaluate(() => { cases[0].name = '再起動後の案件'; saveAll(); });
+    await page.waitForFunction(() => document.querySelector('.gcal-shortcut-label').textContent === '未転記');
+    assert.equal(await page.evaluate(() => window.__tokenRequestCount || 0), 0);
+    await page.locator('#case-list .qb', { hasText: '確認待ち' }).click();
+    await page.waitForFunction(() => (window.__tokenRequestCount || 0) === 1);
+    assert.equal(await page.evaluate(() => window.__lastTokenConfig.login_hint), 'mock-account');
+    await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了'), { timeout: 15000 });
+    assert.ok([...remote.values()].some(event => event.summary.includes('再起動後の案件')));
+    assert.equal(await page.locator('#google-transfer-shortcut .gcal-shortcut-label').innerText(), 'Google転記');
+    // A cancelled automatic reconnect is not repeated on every edit; the pending shortcut remains the recovery path.
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('接続ボタン'));
+    await page.evaluate(() => { window.__tokenMode = 'cancel'; });
+    await page.locator('#case-list .qb', { hasText: '進行中' }).click();
+    await page.waitForFunction(() => (window.__tokenRequestCount || 0) === 1);
+    await page.waitForFunction(() => document.querySelector('.gcal-shortcut-label').textContent === '未転記');
+    await page.locator('#case-list .qb', { hasText: '確認待ち' }).click();
+    await page.waitForTimeout(100);
+    assert.equal(await page.evaluate(() => window.__tokenRequestCount || 0), 1);
+    await page.evaluate(() => { window.__tokenMode = 'success'; });
+    await page.locator('#google-transfer-shortcut').click();
+    await page.waitForFunction(() => (window.__tokenRequestCount || 0) === 2);
+    await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了') &&
+      document.querySelector('.gcal-shortcut-label').textContent === 'Google転記', { timeout: 15000 });
     // An explicitly confirmed stale lock can be taken over even when Google's revision advanced.
+    await page.getByRole('button', { name: '設定', exact: true }).click();
     const marker = [...remote.values()].find(event => event.extendedProperties?.private?.dashboardKey === 'status');
     marker.extendedProperties.private.revision = 'b'.repeat(32);
     marker.extendedProperties.private.busy = 'installed-web-app-device';
