@@ -52,7 +52,11 @@ async function waitForStoredJson(page, getterName, predicate, timeout = 10000) {
       const aiCasesHandle = () => fileHandle('dashboard_cases.json');
       Object.defineProperty(window, 'showSaveFilePicker', {
         configurable: true,
-        value: options => fileHandle(options?.suggestedName || 'dashboard_sync.json')
+        value: options => {
+          if (options?.id && (options.id.length > 32 || !/^[A-Za-z0-9_-]+$/.test(options.id)))
+            throw new TypeError('Invalid file picker id');
+          return fileHandle(options?.suggestedName || 'dashboard_sync.json');
+        }
       });
       window.__getBackupText = async () => (await (await backupHandle()).getFile()).text();
       window.__setBackupText = async value => {
