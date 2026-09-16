@@ -7,6 +7,19 @@ const { chromium } = require(require.resolve('playwright', {
   paths: [process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES || process.cwd()]
 }));
 const root = path.resolve(__dirname, '..');
+async function waitForStoredJson(page, getterName, predicate, timeout = 10000) {
+  const deadline = Date.now() + timeout;
+  let lastValue;
+  while (Date.now() < deadline) {
+    try {
+      const text = await page.evaluate(name => window[name](), getterName);
+      lastValue = JSON.parse(text);
+      if (predicate(lastValue)) return lastValue;
+    } catch (_) {}
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`Timed out waiting for ${getterName}: ${JSON.stringify(lastValue)}`);
+}
 (async () => {
   const server = http.createServer(async (req, res) => {
     try {
@@ -33,12 +46,27 @@ const root = path.resolve(__dirname, '..');
       description: '', timeZone: 'Asia/Tokyo', labelProperties: { eventLabels: [] } };
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(() => {
-      const backupHandle = async () => (await navigator.storage.getDirectory())
-        .getFileHandle('dashboard_sync.json', { create: true });
-      Object.defineProperty(window, 'showSaveFilePicker', { configurable: true, value: backupHandle });
+      const fileHandle = async name => (await navigator.storage.getDirectory())
+        .getFileHandle(name, { create: true });
+      const backupHandle = () => fileHandle('dashboard_sync.json');
+      const aiCasesHandle = () => fileHandle('dashboard_cases.json');
+      Object.defineProperty(window, 'showSaveFilePicker', {
+        configurable: true,
+        value: options => {
+          if (options?.id && (options.id.length > 32 || !/^[A-Za-z0-9_-]+$/.test(options.id)))
+            throw new TypeError('Invalid file picker id');
+          return fileHandle(options?.suggestedName || 'dashboard_sync.json');
+        }
+      });
       window.__getBackupText = async () => (await (await backupHandle()).getFile()).text();
       window.__setBackupText = async value => {
         const writable = await (await backupHandle()).createWritable();
+        await writable.write(String(value));
+        await writable.close();
+      };
+      window.__getAiCasesText = async () => (await (await aiCasesHandle()).getFile()).text();
+      window.__setAiCasesText = async value => {
+        const writable = await (await aiCasesHandle()).createWritable();
         await writable.write(String(value));
         await writable.close();
       };
@@ -118,6 +146,7 @@ const root = path.resolve(__dirname, '..');
     await page.getByRole('button', { name: '設定', exact: true }).click();
     const section = page.locator('#google-calendar-settings');
     const backupSection = page.locator('#icloud-backup-settings');
+    const aiSection = page.locator('#google-drive-ai-settings');
     await backupSection.waitFor({ state: 'visible' });
     await page.waitForFunction(() => document.querySelector('#icloud-backup-settings [data-role="status"]').textContent.length > 0);
     assert.match(await backupSection.innerText(), /最初にiCloud Drive内の保存先を設定/);
@@ -127,6 +156,22 @@ const root = path.resolve(__dirname, '..');
     const downloadPromise = page.waitForEvent('download');
     await backupSection.getByRole('button', { name: '通常ダウンロード' }).click();
     assert.equal((await downloadPromise).suggestedFilename(), 'dashboard_sync.json');
+    await aiSection.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => document.querySelector('#google-drive-ai-settings [data-role="status"]').textContent.length > 0);
+    assert.match(await aiSection.innerText(), /最初にGoogle Drive内の保存先を設定/);
+    await page.evaluate(() => localStorage.setItem('profile', JSON.stringify({
+      name: '非公開の本名', addr: '非公開の住所', bankInfo: '非公開の口座', paypayId: 'private-paypay'
+    })));
+    await aiSection.getByRole('button', { name: 'Google Drive保存先を設定' }).click();
+    await page.waitForFunction(() => document.querySelector('#google-drive-ai-settings [data-role="status"]').textContent.includes('上書き保存'));
+    const initialAiCases = JSON.parse(await page.evaluate(() => window.__getAiCasesText()));
+    assert.equal(initialAiCases.kind, 'illustration-dashboard-cases');
+    assert.equal(initialAiCases.schemaVersion, 2);
+    assert.deepEqual(initialAiCases.cases, []);
+    assert.ok(!('profile' in initialAiCases) && !('settings' in initialAiCases) && !('googleCalendar' in initialAiCases));
+    const aiDownloadPromise = page.waitForEvent('download');
+    await aiSection.getByRole('button', { name: '通常ダウンロード' }).click();
+    assert.equal((await aiDownloadPromise).suggestedFilename(), 'dashboard_cases.json');
     await section.waitFor({ state: 'visible' });
     assert.match(await section.innerText(), /初回接続の設定が必要/);
     await section.locator('[data-field="client"]').fill('123-mock.apps.googleusercontent.com');
@@ -134,9 +179,56 @@ const root = path.resolve(__dirname, '..');
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('接続ボタン'));
     await page.evaluate(() => {
       const date = todayYmd();
-      cases = [normalizeCase({ name: '動作確認用の案件', deadline: addDays(date, 5), status: 'progress', step: '1', paid: '後払い', price: 12000 })];
+      cases = [normalizeCase({ name: '動作確認用の案件', deadline: addDays(date, 5), workStatus: 'progress', step: '1', paymentTerms: 'postpaid', paymentStatus: 'unpaid', price: 12000 })];
+      cases[0].contact = 'client@example.test';
       cases[0].detail = '青い衣装・笑顔\nhttps://example.test/reference';
+      cases[0].memo = 'AIにも必要な内部メモ';
       saveAll();
+    });
+    page.once('dialog', dialog => dialog.accept());
+    const stateMatrix = await page.evaluate(() => {
+      const main = cases[0];
+      const deadline = addDays(todayYmd(), 5);
+      cases.push(
+        normalizeCase({ id: 'delivered-unpaid', name: '納品済み後払い', deadline, step: '5', workStatus: 'wait', paymentTerms: 'postpaid', paymentStatus: 'unpaid' }),
+        normalizeCase({ id: 'paid-in-progress', name: '入金済み制作中', deadline, step: '3', workStatus: 'progress', paymentTerms: 'prepaid', paymentStatus: 'paid', paidDate: todayYmd() })
+      );
+      archive.push(normalizeCase({ id: 'manual-archive', name: '未完了アーカイブ', step: '2', workStatus: 'wait', paymentStatus: 'unpaid' }));
+      saveAll();
+      const delivered = cases.find(item => item.id === 'delivered-unpaid');
+      const schedule = buildScheduleMap();
+      const waits = Object.values(schedule).flatMap(day => day.wait || []).map(item => item.caseName);
+      const projection = buildAiCasesData();
+      const result = {
+        deliveredStayedActive: !!delivered,
+        deliveredWorkStatus: delivered?.workStatus,
+        deliveredOverallStatus: projection.cases.find(item => item.id === 'delivered-unpaid')?.overallStatus,
+        paidInProgressStayedActive: cases.some(item => item.id === 'paid-in-progress'),
+        manualArchivePreserved: archive.some(item => item.id === 'manual-archive' && item.step === '2'),
+        deliveredExcludedFromWait: !waits.includes('納品済み後払い')
+      };
+      delivered.paymentStatus = 'paid';
+      delivered.paidDate = todayYmd();
+      saveAll();
+      result.deliveredPaidArchived = archive.some(item => item.id === 'delivered-unpaid') && !cases.some(item => item.id === 'delivered-unpaid');
+      cases.push(normalizeCase({ id: 'modal-transition', name: '編集画面から納品', step: '3', workStatus: 'progress', paymentStatus: 'paid', paidDate: todayYmd() }));
+      openModal(cases.length - 1);
+      document.getElementById('m-step').value = '5';
+      updateWorkStatusUI();
+      saveCase();
+      result.modalPaidDeliveryArchived = archive.some(item => item.id === 'modal-transition') && !cases.some(item => item.id === 'modal-transition');
+      cases = [main];archive = [];saveAll();
+      return result;
+    });
+    assert.deepEqual(stateMatrix, {
+      deliveredStayedActive: true,
+      deliveredWorkStatus: null,
+      deliveredOverallStatus: 'delivered_awaiting_payment',
+      paidInProgressStayedActive: true,
+      manualArchivePreserved: true,
+      deliveredExcludedFromWait: true,
+      deliveredPaidArchived: true,
+      modalPaidDeliveryArchived: true
     });
     await shortcut.click();
     await page.waitForFunction(() => document.querySelector('.gcal-shortcut-label').textContent === '転記中…');
@@ -161,22 +253,54 @@ const root = path.resolve(__dirname, '..');
     assert.ok(backup.clientLabels?.['動作確認用の案件']?.id);
     assert.ok(!JSON.stringify(backup).includes('mock-token'));
     assert.ok(!('deviceId' in backup) && !('pendingRevision' in backup));
-    await page.waitForFunction(async () => {
-      try { return JSON.parse(await window.__getBackupText()).googleCalendar?.revision; }
-      catch (_) { return false; }
-    });
+    await waitForStoredJson(page, '__getBackupText', data => !!data.googleCalendar?.revision);
     const directBackup = JSON.parse(await page.evaluate(() => window.__getBackupText()));
     assert.equal(directBackup.cases[0].name, '動作確認用の案件');
     assert.equal(directBackup.googleCalendar.revision, backup.revision);
+    const aiCases = await waitForStoredJson(page, '__getAiCasesText', data => data.cases[0]?.name === '動作確認用の案件');
+    assert.ok(aiCases.cases[0].id.startsWith('case_'));
+    assert.equal(aiCases.cases[0].contact, 'client@example.test');
+    assert.equal(aiCases.cases[0].memo, 'AIにも必要な内部メモ');
+    assert.equal(aiCases.cases[0].overallStatus, 'in_progress');
+    assert.equal(aiCases.cases[0].paymentTerms, 'postpaid');
+    assert.equal(aiCases.cases[0].paymentStatus, 'unpaid');
+    assert.ok(!('status' in aiCases.cases[0]) && !('paid' in aiCases.cases[0]) && !('payment' in aiCases.cases[0]));
+    assert.ok(!JSON.stringify(aiCases).includes('非公開の本名'));
+    assert.ok(!JSON.stringify(aiCases).includes('非公開の住所'));
+    assert.ok(!JSON.stringify(aiCases).includes('非公開の口座'));
+    if (process.env.CALENDAR_QA_DIR) {
+      await page.evaluate(() => {
+        cases.push(normalizeCase({ id: 'visual-delivered', name: '馬車道はげみ　かき氷', step: '5', workStatus: 'wait', paymentTerms: 'postpaid', paymentStatus: 'unpaid', paydue: addDays(todayYmd(), 2), deadline: addDays(todayYmd(), -5) }));
+        saveAll();
+      });
+      await page.getByRole('button', { name: '案件一覧', exact: true }).click();
+      assert.match(await page.locator('#case-list').innerText(), /馬車道はげみ　かき氷/);
+      assert.match(await page.locator('#case-list').innerText(), /納品済み・入金待ち/);
+      await page.screenshot({ path: path.join(process.env.CALENDAR_QA_DIR, 'case-list-desktop.png') });
+      await page.setViewportSize({ width: 390, height: 844 });
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+      await page.screenshot({ path: path.join(process.env.CALENDAR_QA_DIR, 'case-list-mobile.png') });
+      await page.setViewportSize({ width: 1120, height: 900 });
+      await page.evaluate(() => { cases = cases.filter(item => item.id !== 'visual-delivered'); saveAll(); });
+      await page.getByRole('button', { name: '設定', exact: true }).click();
+    }
+    const stableCaseId = aiCases.cases[0].id;
     // Editing the real dashboard fires the automatic projection hook.
     await page.evaluate(() => { cases[0].name = '変更後の案件'; saveAll(); });
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了') &&
       !document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('変更0'), { timeout: 15000 });
     assert.ok([...remote.values()].some(event => event.summary.includes('変更後の案件')));
+    if (process.env.CASE_STATE_SMOKE_ONLY === '1') {
+      assert.deepEqual(errors, []);
+      console.log('PASS: case state transitions, AI projection, desktop and mobile rendering, calendar integration');
+      return;
+    }
     // After a page restart, a background change remains pending. The next real edit reconnects and transfers it.
     await page.reload();
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('接続ボタン'));
     await page.evaluate(() => { cases[0].name = '再起動後の案件'; saveAll(); });
+    const reloadedAiCases = await waitForStoredJson(page, '__getAiCasesText', data => data.cases[0]?.name === '再起動後の案件');
+    assert.equal(reloadedAiCases.cases[0].id, stableCaseId);
     await page.waitForFunction(() => document.querySelector('.gcal-shortcut-label').textContent === '未転記');
     assert.equal(await page.evaluate(() => window.__tokenRequestCount || 0), 0);
     await page.locator('#case-list .qb', { hasText: '確認待ち' }).click();
@@ -229,6 +353,18 @@ const root = path.resolve(__dirname, '..');
     }
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     assert.ok(await page.evaluate(() => document.querySelector('.top-bar > span').getBoundingClientRect().height < 30));
+    // A conflict in the AI-facing Google Drive file does not stop the independent iCloud backup.
+    await page.evaluate(async () => {
+      const cloud = JSON.parse(await window.__getAiCasesText());
+      cloud.cases[0].memo = 'Google Drive側の外部更新';
+      cloud.updatedAt = new Date(Date.now() + 60000).toISOString();
+      await window.__setAiCasesText(JSON.stringify(cloud, null, 2));
+      cases[0].memo = 'iCloudへ保存する変更';
+      saveAll();
+    });
+    await page.waitForFunction(() => document.querySelector('#google-drive-ai-settings [data-role="status"]').textContent.includes('自動保存を停止'));
+    await waitForStoredJson(page, '__getBackupText', data => data.cases[0]?.memo === 'iCloudへ保存する変更');
+    assert.equal(JSON.parse(await page.evaluate(() => window.__getAiCasesText())).cases[0].memo, 'Google Drive側の外部更新');
     // An external edit of the selected iCloud file pauses writes until the user imports that version.
     await page.evaluate(async () => {
       const cloud = JSON.parse(await window.__getBackupText());
@@ -254,7 +390,7 @@ const root = path.resolve(__dirname, '..');
     await section.getByRole('button', { name: 'Googleに接続して転記' }).click();
     assert.match(await section.locator('.gcal-status').innerText(), /再読み込み/);
     assert.deepEqual(errors, []);
-    console.log('PASS: midnight highlight, retry, client labels, event details, repeat sync, takeover recovery, direct backup, conflict recovery, mobile layout, stale-tab guard');
+    console.log('PASS: state migration, delivered-payment transitions, midnight highlight, retry, client labels, event details, repeat sync, dual JSON saves, AI privacy filter, conflict recovery, mobile layout, stale-tab guard');
   } finally {
     await browser.close();
     server.close();

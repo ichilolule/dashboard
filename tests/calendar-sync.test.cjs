@@ -4,8 +4,8 @@ const Core = require('../calendar-sync-core.js');
 const sourceId = 'a'.repeat(32);
 const initial = () => ({ sourceId, deviceId: 'device-a', calendarId: 'dedicated@group.calendar.google.com', revision: '' });
 const snapshot = () => ({ today: '2026-09-01', cases: [
-  { name: '案件A', deadline: '2026-09-04', paydue: '2026-08-31', paid: '入金済み', contact: 'do-not-export', price: 999999, detail: '青い衣装・笑顔\nhttps://example.test/reference', memo: 'internal-only' },
-  { name: '案件B', deadline: '2026-09-04', paydue: '2026-09-02', paid: '未入金', detail: '立ち絵' }
+  { name: '案件A', deadline: '2026-09-04', paydue: '2026-08-31', paymentStatus: 'paid', contact: 'do-not-export', price: 999999, detail: '青い衣装・笑顔\nhttps://example.test/reference', memo: 'internal-only' },
+  { name: '案件B', deadline: '2026-09-04', paydue: '2026-09-02', paymentStatus: 'unpaid', detail: '立ち絵' }
 ], schedule: {
   '2026-09-01': { morning: { idx: 0, kind: 'rough', caseName: '案件A' }, night: null, wait: [{ idx: 1, caseName: '案件B' }] },
   '2026-09-02': { morning: null, night: { idx: 0, kind: 'clean', caseName: '案件A' }, wait: [] }
@@ -67,6 +67,11 @@ test('exports the displayed slots and grouped dates, with no billing or contact 
     assert.equal(event.visibility, 'private');
     assert.equal(Date.parse(event.end.date) - Date.parse(event.start.date), 86400000);
   }
+});
+test('delivered unpaid cases retain only their payment due event', () => {
+  const data = { today: '2026-09-01', cases: [{ name: '納品済み後払い', step: '5', deadline: '2026-09-04', paydue: '2026-09-18', paymentStatus: 'unpaid' }], schedule: {} };
+  const events = Core.buildEvents(data);
+  assert.deepEqual(events.map(event => event.title), ['🟡 納品済み後払い']);
 });
 test('uses a custom client label when available and otherwise a Google event color', () => {
   const custom = Core.body({ key: 'work:x', date: '2026-09-01', title: '予定', detail: '',

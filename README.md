@@ -16,7 +16,7 @@ Codexが `index.html` と必要な関連ファイルを直接更新し、公開�
 Googleカレンダー連携のロジックテスト：
 
 ```sh
-node --test tests/calendar-sync.test.cjs
+node --test tests/case-state-core.test.cjs tests/calendar-sync.test.cjs
 ```
 
 PlaywrightとChromiumが利用できる場合の画面テスト：
@@ -27,7 +27,28 @@ node tests/calendar-ui-smoke.cjs
 
 Google連携の初回設定と実機確認は `CALENDAR_SYNC.md` を参照してください。
 
-Chromeでは、設定タブの「iCloud DriveへJSON保存」から初回だけ `dashboard_sync.json` の保存先を選べます。以後は変更時とGoogleカレンダー転記成功後に同じ正本へ自動上書きします。別端末などによる外部更新を検知した場合は上書きを止めるため、画面の案内に従ってiCloud側を読み込むか保存先を再設定してください。
+Chromeでは、設定タブで次の2つの保存先を別々に選べます。
+
+- 「iCloud DriveへJSON保存」：復元用の完全バックアップ `dashboard_sync.json`
+- 「Google DriveへAI参照用JSON保存」：AIが読む案件専用ファイル `dashboard_cases.json`
+
+以後は案件変更時に両方へ独立して自動上書きします。`dashboard_cases.json` には案件・連絡先・内部メモ・料金を含みますが、プロフィール、住所、口座情報、料金設定、Google認証情報は含みません。AIへ案件の確認を依頼するときは、接続済みのGoogle Driveにあるこの固定名のファイルを参照させてください。
+
+### `dashboard_cases.json` の状態の読み方
+
+`schemaVersion: 2` では、案件の総合状態を `overallStatus` に出力します。AIはまずこの値を使います。
+
+- `in_progress`：制作中
+- `awaiting_client`：依頼者の確認・返信待ち
+- `delivered_awaiting_payment`：納品済み・入金待ち。制作作業や確認待ちは完了
+- `completed`：納品済み・入金済み
+- `archived_other`：未完了または未入金のまま手動アーカイブされた案件
+
+`workStatus` は工程1〜4の `progress` / `wait` だけを表し、工程5では `null` です。支払いは `paymentMethod`、`paymentTerms` (`prepaid` / `postpaid` / `unknown`)、`paymentStatus` (`unpaid` / `paid`)、`paidDate` に分離しています。`unknown` は旧データから前払い・後払いを安全に復元できないことを表し、前払いとは推定しません。
+
+`cases` は現行一覧、`archive` はアーカイブです。`dashboard_cases.json` はAI参照用の投影データであり、ダッシュボードへの復元元ではありません。Drive上で直接書き換えると外部更新として検知され、自動保存が停止します。
+
+別端末などによる外部更新を検知した保存先だけ自動保存を停止します。完全バックアップは画面の案内に従ってiCloud側を読み込むか保存先を再設定し、AI参照用ファイルはGoogle Drive側の保存先を再設定してください。
 
 ## 認証
 

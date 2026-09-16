@@ -1,11 +1,8 @@
 (function (root) {
   'use strict';
 
-  const FILE_NAME = 'dashboard_sync.json';
   const DB_NAME = 'ichilole-dashboard-backup-v1';
   const STORE_NAME = 'handles';
-  const RECORD_ID = 'icloud-json';
-  const SETTINGS_KEY = 'dashboardICloudBackup';
 
   function requestResult(request) {
     return new Promise((resolve, reject) => {
@@ -26,18 +23,18 @@
     });
   }
 
-  async function readRecord() {
+  async function readRecord(recordId) {
     const database = await openDatabase();
     try {
-      return await requestResult(database.transaction(STORE_NAME).objectStore(STORE_NAME).get(RECORD_ID));
+      return await requestResult(database.transaction(STORE_NAME).objectStore(STORE_NAME).get(recordId));
     } finally { database.close(); }
   }
 
-  async function writeRecord(record) {
+  async function writeRecord(recordId, record) {
     const database = await openDatabase();
     try {
       await requestResult(database.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).put({
-        id: RECORD_ID,
+        id: recordId,
         ...record
       }));
     } finally { database.close(); }
@@ -62,26 +59,43 @@
     return JSON.stringify(copy);
   }
 
-  function readSettings() {
-    try { return { auto: true, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') }; }
+  function readSettings(settingsKey) {
+    try { return { auto: true, ...JSON.parse(localStorage.getItem(settingsKey) || '{}') }; }
     catch (_) { return { auto: true }; }
   }
 
-  function mount({ element, shortcutButton, snapshot, download, importText, isBusy }) {
+  function mount({
+    element, shortcutButton, snapshot, download, importText, isBusy,
+    fileName = 'dashboard_sync.json', recordId = 'icloud-json', settingsKey = 'dashboardICloudBackup',
+    pickerId = 'ichilole-dashboard-json', lockName = 'ichilole-dashboard-icloud-json',
+    validate = parseBackup, comparable = comparableBackup, syncOnReady = false, ui = {}
+  }) {
     if (!element || typeof snapshot !== 'function') return null;
+    const copy = {
+      heading: 'iCloud DriveへJSON保存',
+      intro: `Chromeの保存画面でiCloud Drive内の <strong>${fileName}</strong> を一度選ぶと、以後は同じ正本へ直接上書きします。`,
+      note: 'JSONには案件・連絡先・請求書設定などが含まれます。ご自身の非公開フォルダを選んでください。',
+      chooseLabel: 'iCloud保存先を設定',
+      sideLabel: 'iCloud側',
+      destinationLabel: 'iCloud Drive',
+      emptyLast: 'まだiCloud用の正本へ保存していません。',
+      initialStatus: '最初にiCloud Drive内の保存先を設定してください。',
+      loadedStatus: 'iCloud側のJSONを読み込みました。変更時の自動保存を再開します。',
+      ...ui
+    };
     const supported = typeof root.showSaveFilePicker === 'function' && !!root.indexedDB && !!root.crypto?.subtle;
-    let settings = readSettings();
-    let handle = null, baselineHash = '', timer = null, writing = false, conflict = false;
+    let settings = readSettings(settingsKey);
+    let handle = null, baselineHash = '', timer = null, writing = false, pendingWrite = false, conflict = false;
     let readyDone = false, persistenceWarning = false;
 
     element.innerHTML = `
-      <h3>iCloud DriveへJSON保存</h3>
-      <p class="gcal-note">Chromeの保存画面でiCloud Drive内の <strong>${FILE_NAME}</strong> を一度選ぶと、以後は同じ正本へ直接上書きします。</p>
-      <p class="gcal-note">JSONには案件・連絡先・請求書設定などが含まれます。ご自身の非公開フォルダを選んでください。</p>
+      <h3>${copy.heading}</h3>
+      <p class="gcal-note">${copy.intro}</p>
+      <p class="gcal-note">${copy.note}</p>
       <div class="gcal-actions">
-        <button type="button" class="reset-btn" data-action="choose">iCloud保存先を設定</button>
+        <button type="button" class="reset-btn" data-action="choose">${copy.chooseLabel}</button>
         <button type="button" class="reset-btn" data-action="save" disabled>今すぐ上書き保存</button>
-        <button type="button" class="reset-btn" data-action="load" hidden>iCloud側を読み込む</button>
+        ${typeof importText === 'function' ? `<button type="button" class="reset-btn" data-action="load" hidden>${copy.sideLabel}を読み込む</button>` : ''}
         <button type="button" class="reset-btn" data-action="download">通常ダウンロード</button>
       </div>
       <label class="gcal-auto"><input type="checkbox" data-field="auto"> 変更時に自動で上書き保存</label>
@@ -95,7 +109,7 @@
     const autoField = q('[data-field="auto"]');
 
     function saveSettings() {
-      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+      localStorage.setItem(settingsKey, JSON.stringify(settings));
     }
 
     function setStatus(message, kind = 'ready') {
@@ -108,16 +122,18 @@
 
     function refresh() {
       const busy = writing || !!isBusy?.();
-      chooseButton.textContent = handle ? '保存先を変更' : 'iCloud保存先を設定';
+      chooseButton.textContent = handle ? '保存先を変更' : copy.chooseLabel;
       chooseButton.disabled = writing || !readyDone;
       saveButton.disabled = !readyDone || !handle || busy || conflict;
-      loadButton.hidden = !handle;
-      loadButton.disabled = !readyDone || busy;
+      if (loadButton) {
+        loadButton.hidden = !handle;
+        loadButton.disabled = !readyDone || busy;
+      }
       autoField.checked = settings.auto;
       autoField.disabled = !supported || !handle || conflict;
       q('[data-role="last"]').textContent = settings.lastSavedAt
         ? '最終保存：' + new Date(settings.lastSavedAt).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '（日本時間）'
-        : 'まだiCloud用の正本へ保存していません。';
+        : copy.emptyLast;
       if (shortcutButton) {
         const kind = q('[data-role="status"]').dataset.kind || (handle ? 'ready' : 'unconfigured');
         shortcutButton.disabled = !readyDone || busy;
@@ -131,7 +147,7 @@
     async function persistHandle() {
       if (!handle) return;
       try {
-        await writeRecord({ handle, baselineHash, savedAt: settings.lastSavedAt || '' });
+        await writeRecord(recordId, { handle, baselineHash, savedAt: settings.lastSavedAt || '' });
         persistenceWarning = false;
       } catch (_) {
         persistenceWarning = true;
@@ -153,25 +169,26 @@
 
     function serializeSnapshot() {
       const text = JSON.stringify(snapshot(), null, 2);
-      parseBackup(text);
+      validate(text);
       return text;
     }
 
     async function writeSnapshot() {
-      if (!handle || writing || conflict) return false;
+      if (!handle || conflict) return false;
+      if (writing) { pendingWrite = true; return false; }
       if (isBusy?.()) { changed({ delay: 500 }); return false; }
-      if (!await permission(false)) {
-        setStatus('Chromeのファイルアクセスが切れています。「今すぐ上書き保存」で再許可してください。', 'permission');
-        return false;
-      }
-      writing = true; refresh();
+      writing = true; pendingWrite = false; refresh();
       try {
+        if (!await permission(false)) {
+          setStatus('Chromeのファイルアクセスが切れています。「今すぐ上書き保存」で再許可してください。', 'permission');
+          return false;
+        }
         const operation = async () => {
           const diskText = await currentFileText();
           const diskHash = await sha256(diskText);
           if (!baselineHash || diskHash !== baselineHash) {
             conflict = true;
-            setStatus('iCloud側のJSONが別の操作で更新されています。自動保存を停止しました。iCloud側を読み込むか、保存先を再設定してください。', 'conflict');
+            setStatus(`${copy.sideLabel}のJSONが別の操作で更新されています。自動保存を停止しました。${loadButton ? `${copy.sideLabel}を読み込むか、` : ''}保存先を再設定してください。`, 'conflict');
             return false;
           }
           const text = serializeSnapshot();
@@ -189,12 +206,12 @@
           await persistHandle();
           setStatus(persistenceWarning
             ? '上書き保存しました。このタブを閉じた後は保存先の再設定が必要です。'
-            : `${FILE_NAME} を上書き保存しました。`, persistenceWarning ? 'permission' : 'saved');
+            : `${fileName} を上書き保存しました。`, persistenceWarning ? 'permission' : 'saved');
           return true;
         };
         if (navigator.locks) {
           let result = false;
-          await navigator.locks.request('ichilole-dashboard-icloud-json', { ifAvailable: true }, async lock => {
+          await navigator.locks.request(lockName, { ifAvailable: true }, async lock => {
             if (!lock) {
               setStatus('別のタブでJSONを保存中です。完了後にもう一度お試しください。', 'error');
               return;
@@ -206,11 +223,15 @@
         return operation();
       } catch (error) {
         const message = error?.name === 'NotReadableError'
-          ? 'iCloudからファイルを読み込めませんでした。Finderでダウンロード完了を確認してください。'
-          : 'JSONを上書き保存できませんでした。iCloud DriveとChromeの権限を確認してください。';
+          ? `${copy.destinationLabel}からファイルを読み込めませんでした。Finderで同期完了を確認してください。`
+          : `JSONを上書き保存できませんでした。${copy.destinationLabel}とChromeの権限を確認してください。`;
         setStatus(message, 'error');
         return false;
-      } finally { writing = false; refresh(); }
+      } finally {
+        writing = false;
+        refresh();
+        if (pendingWrite && !conflict) changed({ immediate: true });
+      }
     }
 
     async function chooseFromGesture() {
@@ -218,25 +239,25 @@
       let nextHandle;
       try {
         nextHandle = await root.showSaveFilePicker({
-          id: 'ichilole-dashboard-json', suggestedName: FILE_NAME,
-          types: [{ description: 'JSONバックアップ', accept: { 'application/json': ['.json'] } }]
+          id: pickerId, suggestedName: fileName,
+          types: [{ description: copy.fileDescription || 'JSONバックアップ', accept: { 'application/json': ['.json'] } }]
         });
       } catch (error) {
         if (error?.name !== 'AbortError') setStatus('保存先を選択できませんでした。', 'error');
         return false;
       }
-      if (nextHandle.name !== FILE_NAME) {
-        setStatus(`正本のファイル名は ${FILE_NAME} にしてください。`, 'error');
+      if (nextHandle.name !== fileName) {
+        setStatus(`固定のファイル名は ${fileName} にしてください。`, 'error');
         return false;
       }
       try {
         const diskText = await currentFileText(nextHandle);
         let diskValue = null;
-        if (diskText) diskValue = parseBackup(diskText);
-        const localValue = parseBackup(serializeSnapshot());
-        if (diskValue && comparableBackup(diskValue) !== comparableBackup(localValue) &&
-            !confirm(`選択した ${FILE_NAME} には異なるデータがあります。\n現在のダッシュボードの内容で上書きしますか？`)) {
-          setStatus('保存先の設定を取り消しました。必要なら先にiCloud側のJSONを読み込んでください。', 'ready');
+        if (diskText) diskValue = validate(diskText);
+        const localValue = validate(serializeSnapshot());
+        if (diskValue && comparable(diskValue) !== comparable(localValue) &&
+            !confirm(`選択した ${fileName} には異なるデータがあります。\n現在のダッシュボードの内容で上書きしますか？`)) {
+          setStatus(`保存先の設定を取り消しました。${loadButton ? `必要なら先に${copy.sideLabel}を読み込んでください。` : ''}`, 'ready');
           return false;
         }
         handle = nextHandle;
@@ -247,8 +268,8 @@
         return writeSnapshot();
       } catch (error) {
         setStatus(error instanceof SyntaxError || error?.message?.includes('ダッシュボード')
-          ? '選択した既存ファイルは有効なダッシュボードJSONではありません。別の保存先を選んでください。'
-          : '保存先を準備できませんでした。iCloud Driveの状態を確認してください。', 'error');
+          ? `選択した既存ファイルは有効な${copy.fileDescription || 'ダッシュボードJSON'}ではありません。別の保存先を選んでください。`
+          : `保存先を準備できませんでした。${copy.destinationLabel}の状態を確認してください。`, 'error');
         return false;
       }
     }
@@ -258,7 +279,7 @@
       if (!readyDone) await ready;
       if (!handle) return chooseFromGesture();
       if (conflict) {
-        setStatus('外部更新を検知しているため上書きしません。iCloud側を読み込むか、保存先を再設定してください。', 'conflict');
+        setStatus(`外部更新を検知しているため上書きしません。${loadButton ? `${copy.sideLabel}を読み込むか、` : ''}保存先を再設定してください。`, 'conflict');
         return false;
       }
       if (!await permission(true)) {
@@ -277,7 +298,7 @@
         baselineHash = diskHash;
         conflict = false;
         await persistHandle();
-        setStatus('iCloud側のJSONを読み込みました。変更時の自動保存を再開します。', 'ready');
+        setStatus(copy.loadedStatus, 'ready');
         changed({ immediate: true });
         return true;
       } catch (_) { return false; }
@@ -285,18 +306,18 @@
 
     async function loadFromHandle() {
       if (!handle || !await permission(true)) {
-        setStatus('iCloud側を読むためのファイルアクセスが許可されませんでした。', 'permission');
+        setStatus(`${copy.sideLabel}を読むためのファイルアクセスが許可されませんでした。`, 'permission');
         return false;
       }
       try {
         const text = await currentFileText();
-        parseBackup(text);
+        validate(text);
         if (!await importText?.(text)) return false;
         return adoptImportedText(text);
       } catch (error) {
         setStatus(error instanceof SyntaxError || error?.message?.includes('ダッシュボード')
-          ? 'iCloud側のファイルは有効なダッシュボードJSONではありません。'
-          : 'iCloud側のファイルを読み込めませんでした。', 'error');
+          ? `${copy.sideLabel}のファイルは有効な${copy.fileDescription || 'ダッシュボードJSON'}ではありません。`
+          : `${copy.sideLabel}のファイルを読み込めませんでした。`, 'error');
         return false;
       }
     }
@@ -304,6 +325,7 @@
     function changed(options = {}) {
       clearTimeout(timer);
       if (!settings.auto || !handle || conflict) return;
+      pendingWrite = true;
       const delay = options.immediate ? 0 : Number(options.delay ?? 1500);
       timer = setTimeout(() => {
         if (isBusy?.()) { changed({ delay: 500 }); return; }
@@ -313,7 +335,7 @@
 
     chooseButton.addEventListener('click', chooseFromGesture);
     saveButton.addEventListener('click', saveFromGesture);
-    loadButton.addEventListener('click', loadFromHandle);
+    loadButton?.addEventListener('click', loadFromHandle);
     q('[data-action="download"]').addEventListener('click', () => download?.());
     autoField.addEventListener('change', event => {
       settings.auto = event.target.checked;
@@ -329,21 +351,25 @@
         return;
       }
       try {
-        const record = await readRecord();
-        if (record?.handle?.name === FILE_NAME && record.baselineHash) {
+        const record = await readRecord(recordId);
+        if (record?.handle?.name === fileName && record.baselineHash) {
           handle = record.handle;
           baselineHash = record.baselineHash;
           if (record.savedAt && !settings.lastSavedAt) settings.lastSavedAt = record.savedAt;
           const granted = await permission(false);
           setStatus(granted
-            ? `${FILE_NAME} への自動保存を利用できます。`
+            ? `${fileName} への自動保存を利用できます。`
             : '保存先を記憶しています。「今すぐ上書き保存」でChromeのアクセスを再許可してください。', granted ? 'ready' : 'permission');
         } else {
-          setStatus('最初にiCloud Drive内の保存先を設定してください。', 'unconfigured');
+          setStatus(copy.initialStatus, 'unconfigured');
         }
       } catch (_) {
         setStatus('保存先の記憶を読み込めませんでした。もう一度設定してください。', 'error');
-      } finally { readyDone = true; refresh(); }
+      } finally {
+        readyDone = true;
+        refresh();
+        if (syncOnReady && settings.auto && handle && !conflict) changed({ immediate: true });
+      }
     })();
 
     refresh();

@@ -65,7 +65,8 @@
     for (const [field, prefix, icon] of [['deadline', '納期', '🔴'], ['paydue', '支払期限', '🟡']]) {
       const dates = new Map();
       for (const item of snapshot.cases) {
-        if (!item[field] || (field === 'paydue' && item.paid === '入金済み')) continue;
+        if (!item[field] || (field === 'paydue' && item.paymentStatus === 'paid') ||
+            (field === 'deadline' && String(item.step) === '5')) continue;
         if (!validDate(item[field])) throw new Error('案件の期日が不正です。');
         if (!dates.has(item[field])) dates.set(item[field], []);
         dates.get(item[field]).push(item);
