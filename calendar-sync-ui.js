@@ -5,7 +5,8 @@
   const DEVICE_KEY = 'dashboardGoogleCalendarDevice';
   const SCOPES = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/calendar.app.created https://www.googleapis.com/auth/calendar.calendarlist.readonly';
   const API_ROOT = 'https://www.googleapis.com/calendar/v3';
-  const BUILD = 'v66';
+  const BUILD = 'v67';
+  const AUTO_SYNC_DELAY_MS = 2000;
   const CLIENT_COLORS = [
     { backgroundColor: '#7986cb', colorId: '1' }, { backgroundColor: '#33b679', colorId: '2' },
     { backgroundColor: '#8e24aa', colorId: '3' }, { backgroundColor: '#e67c73', colorId: '4' },
@@ -42,14 +43,15 @@
     state = { sourceId: Core.uuid(), clientId: '', calendarId: '', revision: '', auto: true, clientLabels: {}, ...state, deviceId };
     state.clientLabels = cleanClientLabels(state.clientLabels);
     let token = '', expiresAt = 0, running = false, pending = false, timer, expiryTimer, preparing = false, staleDocument = false;
+    let deferSyncUntil = 0;
     let connecting = false, unsyncedChanges = false, automaticConnectAttempted = false, userChangeGesture = false;
     let customLabelsUnavailable = false;
     let scriptPromise;
     const listeners = [];
     element.innerHTML = `
       <h3>Googleカレンダーへ転記</h3>
-      <p class="gcal-note">制作予定を専用カレンダーへ送ります。案件名・工程・依頼詳細・期日・返信待ちを転記します。</p>
-      <p class="gcal-note">変更時は自動反映します。接続が切れている場合も、次の編集操作でGoogleへの再接続を試みます。</p>
+      <p class="gcal-note">制作予定を専用カレンダーへ送ります。案件名・工程・依頼詳細・期日を転記し、確認待ちはダッシュボード内だけに表示します。</p>
+      <p class="gcal-note">変更時は自動反映します。制作状態の変更は1分待ってから送信します。接続が切れている場合は、次の画面操作でGoogleへの再接続を試みます。</p>
       <div class="gcal-actions">
         <button type="button" class="reset-btn" data-action="connect">Googleに接続して転記</button>
         <button type="button" class="reset-btn" data-action="sync" disabled>今すぐ転記</button>
@@ -313,6 +315,8 @@
       if (!authorized()) { setStatus('変更をGoogleへ送るには再接続してください。'); return; }
       // Web Locks also prevent concurrent mutations from another tab of this site.
       if (!navigator.locks) { setStatus('このブラウザでは安全に同期できません。最新のSafariまたはChromeを使用してください。', true); return; }
+      clearTimeout(timer);
+      deferSyncUntil = 0;
       const includedUnsyncedChanges = unsyncedChanges;
       unsyncedChanges = false;
       running = true; refresh();
@@ -351,6 +355,8 @@
     function changed(options = {}) {
       clearTimeout(timer);
       const markDirty = options?.markDirty !== false;
+      const delayMs = Math.max(0, Number(options?.delayMs) || 0);
+      if (delayMs) deferSyncUntil = Math.max(deferSyncUntil, Date.now() + delayMs);
       if (markDirty) unsyncedChanges = true;
       refresh();
       if (!unsyncedChanges) return;
@@ -359,20 +365,20 @@
         return;
       }
       if (running) { pending = true; return; }
-      if (token && !authorized()) disconnect('認証期限が切れました。次の編集操作で再接続します。');
+      if (token && !authorized()) disconnect('認証期限が切れました。次の画面操作で再接続します。');
       if (!authorized()) {
         if (!state.clientId) {
           setStatus('未転記の変更があります。Google連携の初回設定を完了してください。');
           return;
         }
-        setStatus('未転記の変更があります。次の編集操作でGoogleへの再接続を試みます。');
+        setStatus('未転記の変更があります。次の画面操作でGoogleへの再接続を試みます。');
         const userGesture = options?.userInitiated === true || userChangeGesture;
         if (!userGesture || automaticConnectAttempted || connecting || preparing) return;
         if (!root.google?.accounts?.oauth2) { prepare(); return; }
         connect({ automatic: true });
         return;
       }
-      timer = setTimeout(runSync, 2000);
+      timer = setTimeout(runSync, Math.max(AUTO_SYNC_DELAY_MS, deferSyncUntil - Date.now()));
     }
     function connect(options = {}) {
       const automatic = options?.automatic === true;
@@ -413,7 +419,8 @@
             automaticConnectAttempted = false;
             connecting = false;
             save();
-            runSync();
+            if (automatic && deferSyncUntil > Date.now()) changed({ markDirty: false });
+            else runSync();
           } catch (error) { disconnect(error.message, { allowAutoReconnect: false }); }
         },
         error_callback: () => {
@@ -452,6 +459,11 @@
     function rememberUserChangeGesture(event) {
       if (!event.isTrusted) return;
       userChangeGesture = true;
+      const explicitConnect = event.target?.closest?.('[data-action="connect"], #google-transfer-shortcut');
+      if (!explicitConnect && unsyncedChanges && state.auto && !authorized() && state.clientId &&
+          !automaticConnectAttempted && !connecting && !preparing && root.google?.accounts?.oauth2) {
+        connect({ automatic: true });
+      }
       setTimeout(() => { userChangeGesture = false; }, 0);
     }
     document.addEventListener('click', rememberUserChangeGesture, true);

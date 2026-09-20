@@ -54,13 +54,6 @@
         add('work:' + date + ':' + slot, date,
           icon + ' ' + name(task.caseName) + '｜' + LABELS[task.kind], lines.join('\n'), eventStyle(item));
       }
-      if (day.wait && day.wait.length) {
-        const names = day.wait.map(task => name(task.caseName));
-        const waitItems = day.wait.map(task => caseForTask(snapshot, task)).filter(Boolean);
-        add('wait:' + date, date, '［返信待ち］' + names.join('／'),
-          'ダッシュボード上の返信待ち表示です。\n' + names.join('\n'),
-          waitItems.length === 1 ? eventStyle(waitItems[0]) : {});
-      }
     }
     for (const [field, prefix, icon] of [['deadline', '納期', '🔴'], ['paydue', '支払期限', '🟡']]) {
       const dates = new Map();

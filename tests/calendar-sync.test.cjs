@@ -47,7 +47,7 @@ test('exports the displayed slots and grouped dates, with no billing or contact 
   const data = snapshot();
   data.profile = { bankInfo: 'bank-secret' };
   const events = Core.buildEvents(data).map(e => Core.body(e, sourceId));
-  assert.equal(events.length, 5);
+  assert.equal(events.length, 4);
   const morning = events.find(e => e.summary.startsWith('☀️'));
   assert.equal(morning.summary, '☀️ 案件A｜大ラフ');
   assert.match(morning.description, /工程：大ラフ\n納期：2026-09-04\n\n依頼詳細：\n青い衣装・笑顔/);
@@ -58,6 +58,7 @@ test('exports the displayed slots and grouped dates, with no billing or contact 
   assert.match(deadline.description, /納期：2026-09-04\n案件A\n案件B/);
   assert.equal(paymentDue.summary, '🟡 案件B');
   assert.match(paymentDue.description, /支払期限：2026-09-02\n案件B/);
+  assert.ok(!events.some(event => event.summary.includes('返信待ち')));
   const text = JSON.stringify(events);
   assert.ok(text.includes('https://example.test/reference'));
   for (const secret of ['do-not-export', '999999', 'internal-only', 'bank-secret']) assert.ok(!text.includes(secret));
@@ -117,10 +118,10 @@ test('all-day boundaries handle month/year/leap rollover and reject invalid date
 test('repeated sync does not duplicate or rewrite unchanged work events', async () => {
   const server = fakeApi(), state = initial();
   const first = await sync(server, state);
-  assert.equal(first.created, 5);
+  assert.equal(first.created, 4);
   const second = await sync(server, state);
-  assert.deepEqual(second, { count: 5, created: 0, updated: 0, removed: 0 });
-  assert.equal(server.db.size, 6); // Five events and the freshness/status record.
+  assert.deepEqual(second, { count: 4, created: 0, updated: 0, removed: 0 });
+  assert.equal(server.db.size, 5); // Four events and the freshness/status record.
 });
 test('replaces legacy deadline labels with emoji without duplicating events', async () => {
   const server = fakeApi(), state = initial();
@@ -249,6 +250,6 @@ test('empty current dataset removes managed copies, while invalid data performs 
   await assert.rejects(sync(server, state, bad), /期日/);
   assert.equal(server.calls.length, before);
   const result = await sync(server, state, { today: '2026-09-01', cases: [], schedule: {} });
-  assert.equal(result.removed, 5);
+  assert.equal(result.removed, 4);
   assert.equal(server.db.size, 1);
 });

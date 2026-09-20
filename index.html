@@ -669,15 +669,15 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 </dialog>
 
 <script src="case-state-core.js?v=1"></script>
-<script src="calendar-sync-core.js?v=66"></script>
-<script src="calendar-sync-ui.js?v=66"></script>
+<script src="calendar-sync-core.js?v=67"></script>
+<script src="calendar-sync-ui.js?v=67"></script>
 <script src="backup-file-sync.js?v=2"></script>
 <script>
 let googleCalendarSync=null;
 let dashboardBackupSync=null;
 let dashboardAiSync=null;
 function notifyBackupChange(){dashboardBackupSync?.changed();dashboardAiSync?.changed();}
-function notifyCalendarChange(){googleCalendarSync?.changed();notifyBackupChange();}
+function notifyCalendarChange(options){googleCalendarSync?.changed(options);notifyBackupChange();}
 // ===== DEFAULT SETTINGS =====
 const DEF_DRAW_ITEMS = [
   {id:'sd',label:'SDキャラクター（2〜3頭身）',coverage:'SDキャラクター',price:6000,hidden:false},
@@ -935,7 +935,7 @@ const initialBusinessDate=getBusinessDate();
 calYear=initialBusinessDate.getFullYear();calMonth=initialBusinessDate.getMonth();
 
 
-function saveAll(){reconcileCaseCollections();localStorage.setItem('cases',JSON.stringify(cases));localStorage.setItem('archive',JSON.stringify(archive));render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();notifyCalendarChange();}
+function saveAll(calendarOptions){reconcileCaseCollections();localStorage.setItem('cases',JSON.stringify(cases));localStorage.setItem('archive',JSON.stringify(archive));render();if(document.getElementById('tp-cal').classList.contains('active'))renderCal();notifyCalendarChange(calendarOptions);}
 // 値を配列に正規化（文字列/null/undefinedにも対応）
 function toArr(v){return Array.isArray(v)?v:(v?[v]:[]);}
 function dL(d){return d?daysBetween(todayYmd(),d):null;}
@@ -1379,6 +1379,7 @@ function collectCaseFormData(base={}){
 }
 function saveCase(){
   const isNew=editIdx===null;
+  const previousWorkStatus=!isNew&&!editIsArchive?cases[editIdx]?.workStatus:null;
   const c=collectCaseFormData(isNew?{}:(editIsArchive?archive[editIdx]:cases[editIdx]));
   if(!editIsArchive&&CaseState.deriveOverallStatus(c,false)==='completed'&&
       !confirm('「'+(c.name||'この案件')+'」を納品済み・入金済みとしてアーカイブに移動しますか？'))return;
@@ -1394,7 +1395,8 @@ function saveCase(){
     cases[editIdx]=c;
   }
   const wasArchive=editIsArchive;
-  closeModal();saveAll();
+  const workStatusChanged=!isNew&&!wasArchive&&previousWorkStatus!==c.workStatus;
+  closeModal();saveAll(workStatusChanged?{delayMs:60000}:undefined);
   if(wasArchive)renderArchive();
 }
 
@@ -1786,7 +1788,8 @@ function clearEst(){
 function quickSetStatus(e,i,v){
   e.stopPropagation();
   if(!cases[i]||CaseState.isDelivered(cases[i]))return;
-  cases[i].workStatus=v;saveAll();
+  if(cases[i].workStatus===v)return;
+  cases[i].workStatus=v;saveAll({delayMs:60000});
 }
 function quickSetStep(e,i,v){
   e.stopPropagation();

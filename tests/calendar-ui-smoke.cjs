@@ -243,11 +243,19 @@ async function waitForStoredJson(page, getterName, predicate, timeout = 10000) {
     assert.ok(workEvent && workEvent.eventLabelId);
     assert.match(workEvent.description, /依頼詳細：\n青い衣装・笑顔/);
     assert.ok(!workEvent.description.includes('編集元') && !workEvent.description.includes('枠：'));
+    assert.ok(![...remote.values()].some(event => event.summary?.includes('返信待ち')));
     assert.ok(calendarResource.labelProperties.eventLabels.some(label => label.name === '動作確認用の案件'));
     const count = remote.size;
     await shortcut.click();
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('追加0・変更0・削除0'));
     assert.equal(remote.size, count);
+    const boundaryRevision = await page.evaluate(() => googleCalendarSync.exportConfig().revision);
+    await page.evaluate(() => {
+      activeBusinessDay = addDays(todayYmd(), -1);
+      refreshBusinessDay();
+    });
+    await page.waitForFunction(previous => googleCalendarSync.exportConfig().revision !== previous,
+      boundaryRevision, { timeout: 15000 });
     const backup = await page.evaluate(() => googleCalendarSync.exportConfig());
     assert.ok(backup.calendarId && backup.revision && backup.clientId);
     assert.ok(backup.clientLabels?.['動作確認用の案件']?.id);
@@ -290,33 +298,100 @@ async function waitForStoredJson(page, getterName, predicate, timeout = 10000) {
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了') &&
       !document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('変更0'), { timeout: 15000 });
     assert.ok([...remote.values()].some(event => event.summary.includes('変更後の案件')));
+    const workBeforeStatusRoundTrip = [...remote.values()]
+      .filter(event => /^[☀🌃]/u.test(event.summary || ''))
+      .map(event => [event.id, event.summary]).sort();
+    await page.evaluate(() => {
+      window.__originalCalendarChanged = googleCalendarSync.changed;
+      window.__calendarChangeDelays = [];
+      googleCalendarSync.changed = options => {
+        window.__calendarChangeDelays.push(options?.delayMs || 0);
+        return window.__originalCalendarChanged({ ...options, delayMs: Math.min(options?.delayMs || 0, 100) });
+      };
+    });
+    await page.getByRole('button', { name: '案件一覧', exact: true }).click();
+    const changedCaseCard = page.locator('#case-list .case-card').filter({ hasText: '変更後の案件' });
+    await changedCaseCard.getByRole('button', { name: '確認待ち', exact: true }).click();
+    await changedCaseCard.getByRole('button', { name: '進行中', exact: true }).click();
+    await page.waitForTimeout(2500);
+    assert.deepEqual(await page.evaluate(() => window.__calendarChangeDelays), [60000, 60000]);
+    assert.deepEqual([...remote.values()]
+      .filter(event => /^[☀🌃]/u.test(event.summary || ''))
+      .map(event => [event.id, event.summary]).sort(), workBeforeStatusRoundTrip);
+    assert.ok(![...remote.values()].some(event => event.summary?.includes('返信待ち')));
+    await page.evaluate(() => { googleCalendarSync.changed = window.__originalCalendarChanged; });
+    const tokenRequestsBeforeExpiry = await page.evaluate(() => window.__tokenRequestCount || 0);
+    await page.evaluate(() => {
+      const realNow = Date.now;
+      Date.now = () => realNow() + 2 * 60 * 60 * 1000;
+      activeBusinessDay = addDays(todayYmd(), -1);
+      refreshBusinessDay();
+      Date.now = realNow;
+    });
+    await page.waitForFunction(() => document.querySelector('.gcal-shortcut-label').textContent === '未転記');
+    assert.equal(await page.evaluate(() => window.__tokenRequestCount || 0), tokenRequestsBeforeExpiry);
+    await page.getByRole('button', { name: 'カレンダー', exact: true }).click();
+    await page.waitForFunction(expected => (window.__tokenRequestCount || 0) === expected,
+      tokenRequestsBeforeExpiry + 1);
+    await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了'),
+      { timeout: 15000 });
+    const tokenRequestsBeforeCancel = await page.evaluate(() => window.__tokenRequestCount || 0);
+    await page.evaluate(() => {
+      const realNow = Date.now;
+      Date.now = () => realNow() + 2 * 60 * 60 * 1000;
+      window.__tokenMode = 'cancel';
+      cases[0].memo = '再接続取消テスト';
+      saveAll();
+      Date.now = realNow;
+    });
+    await page.getByRole('button', { name: '設定', exact: true }).click();
+    await page.waitForFunction(expected => (window.__tokenRequestCount || 0) === expected,
+      tokenRequestsBeforeCancel + 1);
+    await page.getByRole('button', { name: '案件一覧', exact: true }).click();
+    await page.waitForTimeout(100);
+    assert.equal(await page.evaluate(() => window.__tokenRequestCount || 0), tokenRequestsBeforeCancel + 1);
+    await page.evaluate(() => { window.__tokenMode = 'success'; });
+    await page.locator('#google-transfer-shortcut').click();
+    await page.waitForFunction(expected => (window.__tokenRequestCount || 0) === expected,
+      tokenRequestsBeforeCancel + 2);
+    await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了'),
+      { timeout: 15000 });
     if (process.env.CASE_STATE_SMOKE_ONLY === '1') {
       assert.deepEqual(errors, []);
       console.log('PASS: case state transitions, AI projection, desktop and mobile rendering, calendar integration');
       return;
     }
-    // After a page restart, a background change remains pending. The next real edit reconnects and transfers it.
+    // A business-day boundary stays pending after restart. The next normal screen action reconnects and transfers it.
     await page.reload();
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('接続ボタン'));
-    await page.evaluate(() => { cases[0].name = '再起動後の案件'; saveAll(); });
+    await page.evaluate(() => {
+      cases[0].name = '再起動後の案件';
+      localStorage.setItem('cases', JSON.stringify(cases));
+      activeBusinessDay = addDays(todayYmd(), -1);
+      refreshBusinessDay();
+    });
     const reloadedAiCases = await waitForStoredJson(page, '__getAiCasesText', data => data.cases[0]?.name === '再起動後の案件');
     assert.equal(reloadedAiCases.cases[0].id, stableCaseId);
     await page.waitForFunction(() => document.querySelector('.gcal-shortcut-label').textContent === '未転記');
     assert.equal(await page.evaluate(() => window.__tokenRequestCount || 0), 0);
-    await page.locator('#case-list .qb', { hasText: '確認待ち' }).click();
+    await page.getByRole('button', { name: '案件一覧', exact: true }).click();
     await page.waitForFunction(() => (window.__tokenRequestCount || 0) === 1);
     assert.equal(await page.evaluate(() => window.__lastTokenConfig.login_hint), 'mock-account');
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.startsWith('転記完了'), { timeout: 15000 });
     assert.ok([...remote.values()].some(event => event.summary.includes('再起動後の案件')));
     assert.equal(await page.locator('#google-transfer-shortcut .gcal-shortcut-label').innerText(), 'Google転記');
-    // A cancelled automatic reconnect is not repeated on every edit; the pending shortcut remains the recovery path.
+    // A cancelled automatic reconnect is not repeated on every screen action; the pending shortcut remains the recovery path.
     await page.reload();
     await page.waitForFunction(() => document.querySelector('#google-calendar-settings .gcal-status').textContent.includes('接続ボタン'));
-    await page.evaluate(() => { window.__tokenMode = 'cancel'; });
-    await page.locator('#case-list .qb', { hasText: '進行中' }).click();
+    await page.evaluate(() => {
+      window.__tokenMode = 'cancel';
+      cases[0].memo = '再接続取消テスト';
+      saveAll();
+    });
+    await page.getByRole('button', { name: 'カレンダー', exact: true }).click();
     await page.waitForFunction(() => (window.__tokenRequestCount || 0) === 1);
     await page.waitForFunction(() => document.querySelector('.gcal-shortcut-label').textContent === '未転記');
-    await page.locator('#case-list .qb', { hasText: '確認待ち' }).click();
+    await page.getByRole('button', { name: '設定', exact: true }).click();
     await page.waitForTimeout(100);
     assert.equal(await page.evaluate(() => window.__tokenRequestCount || 0), 1);
     await page.evaluate(() => { window.__tokenMode = 'success'; });
