@@ -276,6 +276,12 @@ async function waitForStoredJson(page, getterName, predicate, timeout = 10000) {
     assert.ok(!JSON.stringify(aiCases).includes('非公開の本名'));
     assert.ok(!JSON.stringify(aiCases).includes('非公開の住所'));
     assert.ok(!JSON.stringify(aiCases).includes('非公開の口座'));
+    page.once('dialog', dialog => dialog.accept());
+    assert.equal(await page.evaluate(value => applyBackupText(JSON.stringify(value)), aiCases), true);
+    const afterAiImport = await page.evaluate(() => googleCalendarSync.exportConfig());
+    assert.equal(afterAiImport.revision, backup.revision);
+    assert.equal(afterAiImport.calendarId, backup.calendarId);
+    assert.equal(await page.evaluate(() => getProfile().name), '非公開の本名');
     if (process.env.CALENDAR_QA_DIR) {
       await page.evaluate(() => {
         cases.push(normalizeCase({ id: 'visual-delivered', name: '馬車道はげみ　かき氷', step: '5', workStatus: 'wait', paymentTerms: 'postpaid', paymentStatus: 'unpaid', paydue: addDays(todayYmd(), 2), deadline: addDays(todayYmd(), -5) }));

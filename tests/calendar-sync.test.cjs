@@ -231,6 +231,26 @@ test('an explicitly confirmed stale takeover can recover when Google advanced af
   assert.equal(marker.extendedProperties.private.busy, '');
   assert.equal(savedJson.revision, marker.extendedProperties.private.revision);
 });
+test('recovers a cleared revision only when the last completed sync time still matches Google', async () => {
+  const server = fakeApi(), state = initial();
+  await sync(server, state);
+  const committedRevision = state.revision;
+  const committedTime = state.lastSyncedAt;
+  state.revision = '';
+  const result = await sync(server, state);
+  assert.equal(result.created, 0);
+  assert.equal(result.updated, 0);
+  assert.equal(result.removed, 0);
+  assert.notEqual(state.revision, committedRevision);
+
+  const stale = { ...state, revision: '', lastSyncedAt: committedTime };
+  const newer = snapshot();
+  newer.schedule['2026-09-01'].morning.kind = 'line';
+  await sync(server, state, newer, { now: () => new Date('2026-09-01T12:01:00Z') });
+  const before = server.calls.length;
+  await assert.rejects(sync(server, stale), /最新のJSON/);
+  assert.equal(server.calls.length, before + 1); // Read only; no remote write.
+});
 test('lost local acknowledgement recovers the committed remote revision', async () => {
   const server = fakeApi(), state = initial();
   let saves = 0, persisted;

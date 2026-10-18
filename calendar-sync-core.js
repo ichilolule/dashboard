@@ -183,10 +183,14 @@
       confirmedTakeover = true;
     }
     if ((props.revision || '') !== (state.revision || '')) {
-      if (!confirmedTakeover)
+      // A cases-only import can clear the local baseline while retaining the
+      // last completed sync time. Recover only if Google still has that exact
+      // completed snapshot; a newer remote commit must remain guarded.
+      if (!confirmedTakeover && !(state.revision === '' && state.lastSyncedAt &&
+          props.lastSyncedAt === state.lastSyncedAt && !props.busy))
         throw new Error('Google側に、別の端末で更新した予定があります。最新のJSONを読み込んでから接続してください。');
-      // The user explicitly chose this dashboard as authoritative after a stale cross-device lock.
-      // Adopt the last committed remote revision, then reconcile only this source's managed events.
+      // Adopt the last committed remote revision only after a confirmed stale
+      // takeover or an exact match of the last completed sync timestamp.
       state.revision = props.revision || '';
       state.pendingRevision = '';
       save(state);

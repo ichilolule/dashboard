@@ -669,8 +669,8 @@ mark.unf{background:var(--am-bd);border-radius:3px;padding:0 2px;color:var(--tx)
 </dialog>
 
 <script src="case-state-core.js?v=1"></script>
-<script src="calendar-sync-core.js?v=67"></script>
-<script src="calendar-sync-ui.js?v=67"></script>
+<script src="calendar-sync-core.js?v=68"></script>
+<script src="calendar-sync-ui.js?v=68"></script>
 <script src="backup-file-sync.js?v=2"></script>
 <script>
 let googleCalendarSync=null;
@@ -2372,26 +2372,32 @@ function getBackupImportInput(){
 function applyBackupText(text){
   try{
     const data=JSON.parse(text);
+    const aiCases=data?.kind==='illustration-dashboard-cases';
+    if(aiCases)parseAiCasesData(text);
     if(googleCalendarSync?.isRunning()){alert('Googleへの転記完了後に、JSONを読み込んでください。');return false;}
     if(!Array.isArray(data.cases)&&!Array.isArray(data.archive)){alert('有効なバックアップファイルではありません。');return false;}
-    if(!confirm('現在のデータを上書きしてインポートしますか？\nこの操作は取り消せません。'))return false;
+    if(!confirm(aiCases
+      ? '案件とアーカイブをこのJSONで上書きしますか？\n設定とGoogle連携情報は維持します。この操作は取り消せません。'
+      : '現在のデータを上書きしてインポートしますか？\nこの操作は取り消せません。'))return false;
     if(Array.isArray(data.cases))cases=data.cases.map(normalizeCase);
     if(Array.isArray(data.archive))archive=data.archive.map(normalizeCase);
-    if(data.settings){
-      const importedCfg={...DEF_CFG,...data.settings};
-      importedCfg.drawItems=normalizeDrawItems(data.settings.drawItems,importedCfg);
-      localStorage.setItem('cfg',JSON.stringify(syncLegacyDrawPrices(importedCfg)));
+    if(!aiCases){
+      if(data.settings){
+        const importedCfg={...DEF_CFG,...data.settings};
+        importedCfg.drawItems=normalizeDrawItems(data.settings.drawItems,importedCfg);
+        localStorage.setItem('cfg',JSON.stringify(syncLegacyDrawPrices(importedCfg)));
+      }
+      if(data.profile)localStorage.setItem('profile',JSON.stringify({...DEF_PROF,...data.profile}));
+      if(data.invseq&&typeof data.invseq==='object'){
+        Object.entries(data.invseq).forEach(([k,v])=>{
+          if(k.startsWith('invseq_'))localStorage.setItem(k,String(v));
+        });
+      }
+      if(data.spotHolidays&&typeof data.spotHolidays==='object'){
+        localStorage.setItem('holidays',JSON.stringify(data.spotHolidays));
+      }
+      googleCalendarSync?.importConfig(data.googleCalendar);
     }
-    if(data.profile)localStorage.setItem('profile',JSON.stringify({...DEF_PROF,...data.profile}));
-    if(data.invseq&&typeof data.invseq==='object'){
-      Object.entries(data.invseq).forEach(([k,v])=>{
-        if(k.startsWith('invseq_'))localStorage.setItem(k,String(v));
-      });
-    }
-    if(data.spotHolidays&&typeof data.spotHolidays==='object'){
-      localStorage.setItem('holidays',JSON.stringify(data.spotHolidays));
-    }
-    googleCalendarSync?.importConfig(data.googleCalendar);
     activeBusinessDay=todayYmd();
     scheduleBusinessDayRefresh();
     loadSettingsUI();updateSettingsLabels();
