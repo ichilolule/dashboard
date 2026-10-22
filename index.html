@@ -76,8 +76,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 .b-postpaid{background:var(--am-bg);color:var(--am);font-size:11px}
 .b-remind{background:var(--am-bg);color:var(--am);font-size:11px}.b-overdue{background:var(--rd-bg);color:var(--rd);font-size:11px}
 .card-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.card-name{font-size:15px;font-weight:500;flex:1;min-width:80px}
-.card-project{display:block;font-size:12px;font-weight:400;color:var(--tx2);overflow-wrap:anywhere}
+.card-name{font-size:15px;font-weight:500;flex:1;min-width:80px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-project{font-size:12px;font-weight:400;color:var(--tx2);margin-left:8px}
+@media(max-width:520px){.card-top .card-name{order:2;flex-basis:100%}}
 .card-dl{font-size:13px;color:var(--tx2);white-space:nowrap}.card-dl.urg{color:var(--rd);font-weight:500}
 .card-sub{font-size:13px;color:var(--tx2);margin-top:3px}
 .rev-ctrl{display:flex;align-items:center;gap:5px;font-size:12px}
@@ -1108,7 +1109,7 @@ function render(){
     const paidCtrl=CaseState.isPaid(c)?`<span style="font-size:12px;color:var(--gr);margin-left:auto;padding:2px 6px">✓ 入金済み</span>`:`<button class="qb-paid-btn" onclick="quickSetPaid(event,${i})"><i class="ti ti-circle-check" style="font-size:10px;vertical-align:-1px;margin-right:3px"></i>入金済み</button>`;
     const priceStr=c.price?'¥'+parseInt(c.price).toLocaleString():'';
     return`<div class="case-card${remind?' remind-active':''}${overall==='delivered_awaiting_payment'?' delivered-awaiting-payment':''}" id="card-${i}" style="cursor:pointer">
-      <div class="card-top"><span class="badge ${S_CLS[overall]||'b-wait'}">${CaseState.overallStatusLabel(overall)}</span>${pdBdg}<span class="card-name">${escapeCaseLabel(c.name||'（名前未入力）')}${c.projectName?`<span class="card-project">案件名：${escapeCaseLabel(c.projectName)}</span>`:''}</span><span class="card-dl${isU?' urg':''}">${dlStr}</span>${priceStr?`<span class="card-price">${priceStr}</span>`:''}</div>
+      <div class="card-top"><span class="badge ${S_CLS[overall]||'b-wait'}">${CaseState.overallStatusLabel(overall)}</span>${pdBdg}<span class="card-name" title="${escapeCaseLabel([c.name,c.projectName].filter(Boolean).join(' / '))}">${escapeCaseLabel(c.name||'（名前未入力）')}${c.projectName?`<span class="card-project">${escapeCaseLabel(c.projectName)}</span>`:''}</span><span class="card-dl${isU?' urg':''}">${dlStr}</span>${priceStr?`<span class="card-price">${priceStr}</span>`:''}</div>
       <div class="card-quick">
         <div class="qb-row"><span class="qb-lbl">状態</span>${sButtons}${paidCtrl}</div>
         <div class="qb-row qb-row-bottom"><span class="qb-lbl">工程</span>${stepButtons}<span class="qb-card-actions"><span class="qb-rev-group"><span class="qb-lbl">修正</span><button class="rc-btn" onclick="adjRev(event,${i},-1)">−</button><span class="rc-val">${revisionCount}回</span><button class="rc-btn" onclick="adjRev(event,${i},1)">＋</button></span><button class="qb-arc" onclick="archiveCase(event,${i})" title="アーカイブ"><i class="ti ti-archive"></i></button></span></div>
@@ -1146,7 +1147,7 @@ function renderArchive(){
     const pdBdg=CaseState.isPaid(c)?`<span class="badge b-paid">入金済み</span>`:CaseState.isPostpaid(c)?`<span class="badge b-postpaid">後払い・未入金</span>`:`<span class="badge b-unpaid">未入金</span>`;
     return`<div class="arc-card" id="arc-card-${i}">
       <div class="arc-info">
-        <div class="card-top"><span class="badge ${S_CLS[overall]||'b-archived-other'}">${CaseState.overallStatusLabel(overall)}</span>${pdBdg}<span class="card-name">${escapeCaseLabel(c.name||'（名前未入力）')}${c.projectName?`<span class="card-project">案件名：${escapeCaseLabel(c.projectName)}</span>`:''}</span><span class="card-dl">${dlStr}</span>${priceStr?`<span class="card-price">${priceStr}</span>`:''}</div>
+        <div class="card-top"><span class="badge ${S_CLS[overall]||'b-archived-other'}">${CaseState.overallStatusLabel(overall)}</span>${pdBdg}<span class="card-name" title="${escapeCaseLabel([c.name,c.projectName].filter(Boolean).join(' / '))}">${escapeCaseLabel(c.name||'（名前未入力）')}${c.projectName?`<span class="card-project">${escapeCaseLabel(c.projectName)}</span>`:''}</span><span class="card-dl">${dlStr}</span>${priceStr?`<span class="card-price">${priceStr}</span>`:''}</div>
       </div>
       <button class="restore-btn" onclick="restoreCase(${i})"><i class="ti ti-arrow-back-up"></i> 一覧に戻す</button>
       <button class="del-btn" onclick="deleteFromArchive(${i})"><i class="ti ti-trash"></i> 完全削除</button>
@@ -1940,7 +1941,7 @@ function getCaseStepSlots(c){
 function buildScheduleMap(){
   const cfg=getCfg();
   const sched={};
-  const targets=cases.map((c,i)=>({c,i})).filter(o=>!CaseState.isDelivered(o.c)&&((CaseState.isPaid(o.c)&&o.c.paidDate)||CaseState.isPostpaid(o.c))&&o.c.workStatus!=='wait'&&o.c.deadline);
+  const targets=cases.map((c,i)=>({c,i})).filter(o=>!CaseState.isDelivered(o.c)&&o.c.workStatus==='progress'&&o.c.deadline);
   const today=todayYmd();
 
   function ensureDay(d){if(!sched[d])sched[d]={morning:null,night:null,wait:[]};return sched[d];}
@@ -1970,8 +1971,7 @@ function buildScheduleMap(){
       {kind:'retouch',count:slots.retouch,activeStep:4}
     ].filter(st=>si<=st.activeStep).map(st=>({...st,remaining:st.count}));
     if(!stages.length)return;
-    const scheduleStart=CaseState.isPostpaid(c)?today:(c.paidDate<today?today:c.paidDate);
-    states.push({c,i,stages,stageIdx:0,availableFrom:scheduleStart});
+    states.push({c,i,stages,stageIdx:0,availableFrom:today});
   });
 
   function remainingSlots(state){
@@ -1980,17 +1980,14 @@ function buildScheduleMap(){
     return total;
   }
 
-  // 余裕日数が小さい案件ほど優先。締切・入金日・登録順で安定させる。
+  // 余裕日数が小さい案件ほど優先。締切・登録順で安定させる。
   function urgencyCompare(a,b,dateStr){
     const slackA=workdaysLeft(dateStr,a.c.deadline)-remainingSlots(a);
     const slackB=workdaysLeft(dateStr,b.c.deadline)-remainingSlots(b);
     if(slackA!==slackB)return slackA-slackB;
     const dlCmp=a.c.deadline.localeCompare(b.c.deadline);
     if(dlCmp)return dlCmp;
-    const aStart=CaseState.isPostpaid(a.c)?'':a.c.paidDate;
-    const bStart=CaseState.isPostpaid(b.c)?'':b.c.paidDate;
-    const paidCmp=aStart.localeCompare(bStart);
-    return paidCmp||a.i-b.i;
+    return a.i-b.i;
   }
 
   function eligibleStates(dateStr){
@@ -2055,6 +2052,8 @@ function buildScheduleMap(){
 
 const TASK_LBL={rough:'大ラフ',line:'清書前ラフ',clean:'清書',retouch:'レタッチ'};
 const TASK_CLS={rough:'t-rough',line:'t-line',clean:'t-clean',retouch:'t-retouch'};
+function calendarCaseName(c){return String(c?.projectName||'').trim()||String(c?.name||'').trim()||'—';}
+function calendarTaskName(task){return calendarCaseName(cases[task.idx]);}
 
 function buildMonthGrid(year,month,calendarDate=new Date()){
   const cfg=getCfg();
@@ -2064,8 +2063,8 @@ function buildMonthGrid(year,month,calendarDate=new Date()){
   // アーカイブは依頼スケジュールを表示しない（cases のみ）
   cases.forEach(c=>{
     const ri=cases.indexOf(c);
-    if(c.deadline&&!CaseState.isDelivered(c)){const d=parseYmd(c.deadline);if(d.getFullYear()===year&&d.getMonth()===month){const k=d.getDate();if(!evMap[k])evMap[k]=[];evMap[k].push({type:dL(c.deadline)<=7?'ev-dl-u':'ev-dl',name:'📦'+(c.name||'—'),idx:ri,isArc:false});}}
-    if(c.paydue&&!CaseState.isPaid(c)){const d=parseYmd(c.paydue);if(d.getFullYear()===year&&d.getMonth()===month){const k=d.getDate();if(!evMap[k])evMap[k]=[];evMap[k].push({type:dL(c.paydue)<0?'ev-pay-o':'ev-pay',name:'💳'+(c.name||'—'),idx:ri,isArc:false});}}
+    if(c.deadline&&!CaseState.isDelivered(c)){const d=parseYmd(c.deadline);if(d.getFullYear()===year&&d.getMonth()===month){const k=d.getDate();if(!evMap[k])evMap[k]=[];evMap[k].push({type:dL(c.deadline)<=7?'ev-dl-u':'ev-dl',name:'📦'+calendarCaseName(c),idx:ri,isArc:false});}}
+    if(c.paydue&&!CaseState.isPaid(c)){const d=parseYmd(c.paydue);if(d.getFullYear()===year&&d.getMonth()===month){const k=d.getDate();if(!evMap[k])evMap[k]=[];evMap[k].push({type:dL(c.paydue)<0?'ev-pay-o':'ev-pay',name:'💳'+calendarCaseName(c),idx:ri,isArc:false});}}
   });
   const first=new Date(year,month,1).getDay();
   const last=new Date(year,month+1,0).getDate();
@@ -2086,19 +2085,21 @@ function buildMonthGrid(year,month,calendarDate=new Date()){
         const m=daySched.morning;
         const fbCls=m.fallback?' fb':'';
         const fbTitle=m.fallback?'（やむを得ず朝に配置）':'';
-        taskH+=`<div class="cal-task ${TASK_CLS[m.kind]}${fbCls}" onclick="jumpToCase(event,${m.idx})" title="${m.caseName} - ${TASK_LBL[m.kind]}${fbTitle}">☀️ ${m.caseName}</div>`;
+        const label=escapeCaseLabel(calendarTaskName(m));
+        taskH+=`<div class="cal-task ${TASK_CLS[m.kind]}${fbCls}" onclick="jumpToCase(event,${m.idx})" title="${label} - ${TASK_LBL[m.kind]}${fbTitle}">☀️ ${label}</div>`;
       }
       if(daySched.night){
         const n=daySched.night;
         const fbCls=n.fallback?' fb':'';
         const fbTitle=n.fallback?'（やむを得ず夜に配置）':'';
-        taskH+=`<div class="cal-task ${TASK_CLS[n.kind]}${fbCls}" onclick="jumpToCase(event,${n.idx})" title="${n.caseName} - ${TASK_LBL[n.kind]}${fbTitle}">🌃 ${n.caseName}</div>`;
+        const label=escapeCaseLabel(calendarTaskName(n));
+        taskH+=`<div class="cal-task ${TASK_CLS[n.kind]}${fbCls}" onclick="jumpToCase(event,${n.idx})" title="${label} - ${TASK_LBL[n.kind]}${fbTitle}">🌃 ${label}</div>`;
       }
     }
     // 返信待ち表示（休日でない、作業も入っていない日のみ）
     if(daySched.wait.length>0&&!isHol&&!daySched.morning&&!daySched.night){
       const w=daySched.wait[0];
-      taskH+=`<div class="cal-wait-lbl" title="返信待ち：${w.caseName}"><i class="ti ti-coffee" style="font-size:11px"></i>練習・趣味の日</div>`;
+      taskH+=`<div class="cal-wait-lbl" title="返信待ち：${escapeCaseLabel(calendarTaskName(w))}"><i class="ti ti-coffee" style="font-size:11px"></i>練習・趣味の日</div>`;
     }
     
     // 期日イベント表示
@@ -2106,7 +2107,7 @@ function buildMonthGrid(year,month,calendarDate=new Date()){
     let evH=evs.map(ev=>{
       let click='';
       if(ev.idx>=0)click=`onclick="jumpToCase(event,${ev.idx})"`;
-      return`<div class="cal-ev ${ev.type}" ${click} title="${ev.name}">${ev.name}</div>`;
+      return`<div class="cal-ev ${ev.type}" ${click} title="${escapeCaseLabel(ev.name)}">${escapeCaseLabel(ev.name)}</div>`;
     }).join('');
     if(more>0)evH+=`<div style="font-size:10px;color:var(--tx3);padding:1px 3px">他${more}件</div>`;
     
@@ -2138,22 +2139,22 @@ function buildTodayPanel(){
     if(daySched.morning){
       const m=daySched.morning;
       const fbNote=m.fallback?' <span style="font-size:11px;color:var(--am);background:var(--am-bg);padding:1px 6px;border-radius:8px;margin-left:4px">優先枠埋まり</span>':'';
-      rows+=`<div class="today-task-row" onclick="jumpToCase(event,${m.idx})"><div class="today-task-icon">☀️</div><div class="today-task-block">朝〜昼 ${cfg.morningHours}h</div><div class="today-task-type">${TASK_LBL[m.kind]}${fbNote}</div><div class="today-task-case">${m.caseName}</div></div>`;
+      rows+=`<div class="today-task-row" onclick="jumpToCase(event,${m.idx})"><div class="today-task-icon">☀️</div><div class="today-task-block">朝〜昼 ${cfg.morningHours}h</div><div class="today-task-type">${TASK_LBL[m.kind]}${fbNote}</div><div class="today-task-case">${escapeCaseLabel(calendarTaskName(m))}</div></div>`;
     }
     if(daySched.night){
       const n=daySched.night;
       const fbNote=n.fallback?' <span style="font-size:11px;color:var(--am);background:var(--am-bg);padding:1px 6px;border-radius:8px;margin-left:4px">優先枠埋まり</span>':'';
-      rows+=`<div class="today-task-row" onclick="jumpToCase(event,${n.idx})"><div class="today-task-icon">🌃</div><div class="today-task-block">夜 ${cfg.nightHours}h</div><div class="today-task-type">${TASK_LBL[n.kind]}${fbNote}</div><div class="today-task-case">${n.caseName}</div></div>`;
+      rows+=`<div class="today-task-row" onclick="jumpToCase(event,${n.idx})"><div class="today-task-icon">🌃</div><div class="today-task-block">夜 ${cfg.nightHours}h</div><div class="today-task-type">${TASK_LBL[n.kind]}${fbNote}</div><div class="today-task-case">${escapeCaseLabel(calendarTaskName(n))}</div></div>`;
     }
     if(!rows){
       if(daySched.wait.length>0){
-        const names=daySched.wait.map(w=>w.caseName).join('、');
+        const names=daySched.wait.map(w=>escapeCaseLabel(calendarTaskName(w))).join('、');
         rows=`<div class="today-wait"><i class="ti ti-coffee" style="font-size:16px"></i>確認待ち：${names}　→ 今日は<strong>練習や趣味の絵</strong>を描く日です</div>`;
       }else{
         rows=`<div class="today-empty">予定された作業はありません。練習や次の依頼の準備に使えます。</div>`;
       }
     }else if(daySched.wait.length>0){
-      const names=daySched.wait.map(w=>w.caseName).join('、');
+      const names=daySched.wait.map(w=>escapeCaseLabel(calendarTaskName(w))).join('、');
       rows+=`<div class="today-wait"><i class="ti ti-coffee" style="font-size:14px"></i>${names}は確認待ち中</div>`;
     }
     inner=rows;
